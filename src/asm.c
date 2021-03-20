@@ -1151,7 +1151,7 @@ int to_comma(char *in, char *out) {
  *=========================================================================*/
 int do_float() {
   char *str,*look;
-  char buf[80];
+  char buf[256];
   int d,c,p;
 
   str=get_nxt_word(1);
@@ -1212,7 +1212,7 @@ int do_float() {
  *=========================================================================*/
 int do_xword(int tp) {
   char *str,*look;
-  char buf[80];
+  char buf[256];
   unsigned short add, a;
   int d,c,p;
 
@@ -1303,7 +1303,7 @@ int do_xword(int tp) {
  *=========================================================================*/
 int do_xbyte(int tp) {
   char *str,*look;
-  char buf[80];
+  char buf[256];
   unsigned char add,cb,hi;
   short a;
   int d,i,p,c;

@@ -81,7 +81,7 @@ int parse_expr(char *a) {
       *walk++='v';
       n=walk;
       while (ISDIGIT(*look)) {
-          if (*n >= theEnd) {
+          if (n >= theEnd) {
               error("Expression parse buffer overflow",1);
               return 0;
           }
