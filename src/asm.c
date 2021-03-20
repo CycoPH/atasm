@@ -91,6 +91,8 @@
  *  03/20/21 ph  Fixed / and \ in filename when saving to ATR
  *               Fixed stack-based buffer overflow in the 
  *               get_signed_expression() function aka CVE-2019-19787
+ *               Fixed stacked-base buffer overflow in the parse_expr()
+ *               function, aka  CVE-2019-19786
  *==========================================================================*
  * TODO
  *   indepth testing of .IF,.ELSE,.ENDIF (signal error on mismatches?)

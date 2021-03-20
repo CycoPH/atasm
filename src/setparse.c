@@ -66,11 +66,12 @@ int yylex()
   parameters: str - the expression to parse (numbers and directive only)
 
   Create simpler expression (replace .DIRECTIVEs, etc) and then return
-  retult.
+  result.
  *=========================================================================*/
 int parse_expr(char *a) {
   int v,num;
   char expr[80], *look, *walk, *n;
+  char* theEnd = expr + sizeof(expr);
 
   vnum=num=0;
   look=a;
@@ -79,8 +80,13 @@ int parse_expr(char *a) {
     if (ISDIGIT(*look)) {
       *walk++='v';
       n=walk;
-      while(ISDIGIT(*look))
-        *n++=*look++;
+      while (ISDIGIT(*look)) {
+          if (*n >= theEnd) {
+              error("Expression parse buffer overflow",1);
+              return 0;
+          }
+          *n++ = *look++;
+      }
       *n=0;
       sscanf(walk,"%d",&v);
       nums[num]=v;
