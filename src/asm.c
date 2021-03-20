@@ -788,12 +788,22 @@ short get_immediate(char *str) {
 
   inserts a label into the symbol table, also handles equates
 
+  PH: Lots of assemblers end a label in a :
+      Added option to kill the : and make it a valid label definition
+
   TODO add local labels
  *=========================================================================*/
 int add_label(char *label) {
   symbol *sym;
   char *str,num[32];
   int v;
+
+  /* If the last char of a label is a : then remove it*/
+  int labelLength = strlen(label);
+  if (*(label + labelLength-1) == ':')
+  {
+      *(label + labelLength-1) = 0;
+  }
 
   if (!strcmp(label,"A")) {
     error("'A' is a reserved operand.",1);
