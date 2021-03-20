@@ -79,3 +79,6 @@ May 26, 2014
   version 1.08 - Initial support of list files with -g command-line parameter; Allow .INCBIN
                  to honor include paths; Missing state files no longer segfault;  Double-forward
                  defines now throw an error rather than silently generate bad code
+March 20, 2021
+  version 1.09 - Fixed a problem with filename creation when saving output to an ATR image;
+				 Fixed CVE-2019-19787: Stack-based buffer overflow in the get_signed_expression() function 

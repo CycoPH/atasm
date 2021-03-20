@@ -88,6 +88,9 @@
  *               ...will add DELAY?L to symbol table
  *  02/12/10 mws calculate .SET 6 on second pass to allow for symbol refs
  *  04/19/10 mws applied patch frm 8bit-man to fix token grab routine ';'
+ *  03/20/21 ph  Fixed / and \ in filename when saving to ATR
+ *               Fixed stack-based buffer overflow in the 
+ *               get_signed_expression() function aka CVE-2019-19787
  *==========================================================================*
  * TODO
  *   indepth testing of .IF,.ELSE,.ENDIF (signal error on mismatches?)

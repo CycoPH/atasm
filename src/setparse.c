@@ -175,9 +175,10 @@ int get_signed_expression(char *str, int tp) {
       } else *walk++=*look++;
     } else if (strchr(math,*look))
       *walk++=*look++;
-    else if (*look=='!')      /* Old binary OR operator */
+    else if (*look=='!') {     /* Old binary OR operator */
       *walk++='|';
-    else if (ISDIGIT(*look)) {
+      look++;           /* skip to next char */
+    } else if (ISDIGIT(*look)) {
       while(ISDIGIT(*look)) { /* Immediate value */
         *walk++=*look++;
       }

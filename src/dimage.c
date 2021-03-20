@@ -177,6 +177,10 @@ void convertfname(char *in, char *out) {
   while ((*look!='\\')&&(*look!='/')&&(look!=in)) {
     look--;
   }
+  /* if / or \ was found then skip forward to the next char */
+  if (*look == '/' || *look == '\\') {
+    look++;
+  }
   in=look;
 
   for(x=0; x<11; x++)
