@@ -126,7 +126,7 @@ FILE *fopen_include(str_list *head, char *fname, int is_binary) {
   /* Now test with include paths... */
   full_path = (char*)malloc(MAX_PATH);
   if(full_path==NULL)
-    error("Cannot allocate %d bytes in fopen_include",1);
+    error("Cannot allocate MAX_PATH bytes in fopen_include",1);
 
   while(head) {
     full_path[0] = '\0';

@@ -1,8 +1,8 @@
 ============================================================================
-	                 ATasm v1.08 ("Not a Typewriter Release")
+	                 ATasm v1.09 ("Global Pandemic Release")
 		  A mostly Mac65 compatible 6502 cross-assembler
 
-		    Copyright (c) 1998-2015 Mark Schmelzenbach
+		    Copyright (c) 1998-2021 Mark Schmelzenbach
 			e-mail: mschmelzenbach@acm.org
 ============================================================================
  Introduction
@@ -139,6 +139,14 @@ version 1.08 - Initial support of list files with -g command-line
                Missing state files no longer segfault; Double-forward
                defines now throw an error rather than silently
                generate bad code
+Version 1.09 - Contributions by Peter Hinz; Fixed a problem with filename
+               creation when saving output to an ATR image;
+	       Fixed CVE-2019-19785: Stack-based buffer overflow in the
+	       to_comma() function; Fixed CVE-2019-19786: Stack-based
+	       buffer overflow in the parse_expr() function; Fixed
+	       CVE-2019-19787: Stack-based buffer overflow in the
+	       get_signed_expression() function; Compiling Windows
+	       executable with Clang.
 
 ============================================================================
 Chapter 1: ATasm
@@ -824,9 +832,13 @@ Patches and code contributions:
   Mark Schmelzenbach
   B. Watson
   Dan Horak
+  Peter Hinz
 
 Bug Reports and Feature requests:
   Cow Claygill
+  Peter Dell
+  Peter Frederik
+  Peter Hinz
   Doug Hodson
   Dan Horak
   Tom Hunt

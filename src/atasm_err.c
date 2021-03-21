@@ -51,6 +51,9 @@ void errAdd(unsigned int id, unsigned int num) {
   key=key%ISIZE;
 
   in=(ihashNode *)malloc(sizeof(ihashNode));
+  if (!in) {
+    error("Out of memory creating warning table", 1);
+  }
   in->id=id;
   in->data=num;
   in->nxt=NULL;

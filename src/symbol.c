@@ -155,10 +155,16 @@ void addUnk(char *unk) {
     look=isUnk(unk);
     if (!look) {
       unkLabel *u=(unkLabel *)malloc(sizeof(unkLabel));
+      if (!u) {
+        error("Out of memory allocating symbol.", 1);
+      }
       u->nxt=unkLabels;
       u->zp=0;
       unkLabels=u;
       u->label=(char *)malloc(strlen(unk)+1);
+      if (!u->label) {
+        error("Out of memory allocating symbol.", 1);
+      }
       strcpy(u->label,unk);
     }
   }
@@ -372,6 +378,9 @@ symbol *get_sym() {
   symbol *sym;
 
   sym=(symbol *)malloc(sizeof(symbol));
+  if (!sym) {
+    error("Out of memory allocating new symbol.", 1);
+  }
   sym->nxt=sym->lnk=sym->mlnk=NULL;
   sym->name=sym->macroShadow=NULL;
   sym->ref=sym->tp=sym->addr=sym->bank=sym->num=0;
@@ -578,6 +587,9 @@ macro_call *get_macro_call(char *name) {
   while(walk) {
     if (!strcmp(name,walk->name)) {
       call=(macro_call *)malloc(sizeof(macro_call));
+      if (!call) {
+        error("Out of memory allocating macro.", 1);
+      }
       call->argc=0;
       call->orig=walk;
       call->cmd=NULL;
@@ -762,8 +774,14 @@ int create_macro(symbol *sym) {
     get_nxt_word(1);      /* Reset line to force read */
     m->num++;
     line=(macro_line *)malloc(sizeof(macro_line));
+    if (!line) {
+      error("Out of memory allocating macro.", 1);
+    }
     line->nxt=0;
     line->line=(char *)malloc(strlen(str)+1);
+    if (!line->line) {
+      error("Out of memory allocating macro.", 1);
+    }
     strcpy(line->line,str);
     if (!m->lines)
       m->lines=tail=line;
@@ -813,8 +831,14 @@ int macro_param(macro_call *mc, char *cmd) {
     }
     n++;
     line=(macro_line *)malloc(sizeof(macro_line));
+    if (!line) {
+      error("Out of memory allocting macro paramter.", 1);
+    }
     line->nxt=0;
     line->line=(char *)malloc(strlen(param)+1);
+    if (!line->line) {
+      error("Out of memory allocting macro paramter.", 1);
+    }
     strcpy(line->line,param);
     if (!mc->cmd)
       mc->cmd=tail=line;
@@ -894,7 +918,13 @@ int do_rept(symbol *sym) {
   printf("Repeat block %d\n",num);
   */
   m=(macro *)malloc(sizeof(macro));
+  if (!m) {
+    error("Cannot allocate memory for repeat block.", 1);
+  }
   m->name=(char *)malloc(13);
+  if (!m->name) {
+    error("Cannot allocate memory for repeat block.", 1);
+  }
   strcpy(m->name,"repeat block");
   m->mlabels=NULL;
   m->times=0;
@@ -921,8 +951,14 @@ int do_rept(symbol *sym) {
     str=get_nxt_word(2);  /* Retrieve entire line */
     get_nxt_word(1);      /* Reset line to force read */
     line=(macro_line *)malloc(sizeof(macro_line));
+    if (!line) {
+      error("Error allocting memory for repeat.", 1);
+    }
     line->nxt=NULL;
     line->line=(char *)malloc(strlen(str)+1);
+    if (!line->line) {
+        error("Error allocting memory for repeat.", 1);
+    }
     strcpy(line->line,str);
     if (!m->lines)
       m->lines=tail=line;

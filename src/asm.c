@@ -188,6 +188,8 @@ memBank *get_bank(int id, int sym_id) {
       return walk;
     else if ((walk->nxt)&&(walk->nxt->id>id)) {
       bank=(memBank *)malloc(sizeof(memBank));
+      if (!bank)
+          return NULL;
       bank->nxt=walk->nxt;
       break;
     }
@@ -288,7 +290,13 @@ int open_file(char *fname) {
   char buf[256];
 
   fnew=(file_stack *)malloc(sizeof(file_stack));
+  if (!fnew) {
+    error("Out of memory allocating filename", 1);
+  }
   fnew->name=(char *)malloc(strlen(fname)+1);
+  if (!fnew->name) {
+      error("Out of memory allocating filename", 1);
+  }
   strcpy(fnew->name,fname);
 
   fnew->in = fopen_include(includes, fname, 0);
@@ -843,6 +851,9 @@ int add_label(char *label) {
       /* Create new name... */
       free(sym->name);
       sym->name=malloc(strlen(label)+strlen(invoked->orig->name)+10);
+      if (!sym->name) {
+        error("Cannot allocate memory for label during macro instantiation.", 1);
+      }
       sprintf(sym->name,"=%.4x_%s=%s",invoked->orig->times,invoked->orig->name,label);
       sym->macroShadow=strchr(sym->name+1,'=')+1;
 
@@ -856,6 +867,9 @@ int add_label(char *label) {
         if (!findsym(label)) {
           symbol *nsym=get_sym();
           nsym->name=(char *)malloc(strlen(label)+1);
+          if (!nsym->name) {
+            error("Cannot allocate room for macro during macro instantiation.", 1);
+          }
           strcpy(nsym->name,label);
           nsym->tp=MACROL;
           nsym->addr=pc;
@@ -1361,7 +1375,7 @@ int do_xbyte(int tp) {
       d=to_comma(look,buf);
       look=look+d;
       d=strlen(buf)-1;
-      if ((((d<0)||(buf[0]!=34))&&(buf[d]!=34))||
+      if ((d>255)||(((d<0)||(buf[0]!=34))&&(buf[d]!=34))||
           ((d>0)&&(buf[0]==34)&&(buf[d]!=34))) {
         error("Malformed string.",1);
       } else {
@@ -1480,7 +1494,7 @@ int incbin(char *fname) {
   }
   v=verbose;
   verbose=0;
-  while(!feof(in)) {
+  while((in)&&(!feof(in))) {
     b=fgetc(in);
     if (!feof(in)) {
       if (pass)

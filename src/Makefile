@@ -11,8 +11,8 @@
 
 # if you are compiling under UNIX, change the above lines to
 # reflect the location of zlib.  I use:
-USEZ    = -DZLIB_CAPABLE
-ZLIB    = -lz
+USEZ    = -DZLIB_CAPABLE -I../zlib
+ZLIB    = -L../zlib -lz
 UNIX    = -DUNIX
 
 # Compiler flags, if you are using egcs, pgcs, or gcc >2.8.1 use:

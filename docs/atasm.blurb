@@ -1,6 +1,6 @@
-                         ATasm v1.07 ("Flying Car Release")
+                         ATasm v1.09 ("Global Pandemic Release")
                   A mostly Mac/65 compatible 6502 cross-assembler
-                    Copyright (c) 1998-2010 Mark Schmelzenbach
+                    Copyright (c) 1998-2021 Mark Schmelzenbach
 
 ATasm is a 6502 command-line cross-assembler that is compatible with the
 original Mac/65 macroassembler released by OSS software.  Code
@@ -20,7 +20,7 @@ Rich macro support, compatible with existing Mac/65 code libraries
 Atari specific assembler directives (.SBYTE,.FLOAT,etc.) and undocumented
 opcodes.
 
-ATasm runs native on IBM PCs either in XP/Vista/Win7 and
-compiles cleanly under Linux, MacOS/X or any platform with the GNU C compiler.
+ATasm runs native on IBM PCs on Windows and compiles cleanly under Linux, 
+MacOS/X or any platform with the GNU C or Clang compiler.
 
 All source code and the Windows binary are included in the package.

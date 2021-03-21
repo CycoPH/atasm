@@ -39,6 +39,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "atasm_err.h"
 #include "symbol.h"
 
 #ifdef ZLIB_CAPABLE
@@ -623,6 +624,9 @@ int templateType(char *fin) {
     return 0;
   }
   buf=(char *)malloc(8192);
+  if (!buf) {
+    error("Out of memory allocating room for state file.", 1);
+  }
   while(!feof(in)) {
     result=fread(buf,1,8191,in);
     buf[result]=0;
