@@ -39,6 +39,7 @@
    3.17 .REPT <word>,.ENDR
    3.18 .SET 6, <expression>
    3.19 .BANK
+   3.20 .ALIGN boundary
 
  Chapter 4: Incompatibilities
 
@@ -147,6 +148,7 @@ Version 1.09 - Contributions by Peter Hinz; Fixed a problem with filename
 	       CVE-2019-19787: Stack-based buffer overflow in the
 	       get_signed_expression() function; Compiling Windows
 	       executable with Clang.
+		   Added the .ALIGN directive to replace *=(*+256)&$ff00
 
 ============================================================================
 Chapter 1: ATasm
@@ -751,6 +753,15 @@ append the code in the .obj file), use the following:
 If you wish to split the .obj file, but have the .BANKNUM operator
 report as bank 0, use:
         .BANK ,0
+		
+3.20 .ALIGN boundary
+        This directive a;igns the current location to a specified boundary.
+The boundary values has to be a power of 2. In effect this is a shortcut
+for something like page alignment:
+		*=(*+$FF)&$FF00	; Makes sure that the next byte is placed on the
+						; next page boundary
+		.ALIGN $100
+
 ============================================================================
 Chapter 4: Incompatibilities with Mac/65
 ============================================================================
@@ -771,8 +782,8 @@ such as 'a2u' to convert the ATASCII to ASCII.
     label
 7) Macro parameters can be separated by commas or by spaces
 8) .END,.PAGE,.TAB,.TITLE, and most .SET directives are ignored
-9) Extra directives .DC, .DS, .INCBIN, .WARN, .REPT/.ENDR have been
-    added
+9) Extra directives .DC, .DS, .INCBIN, .WARN, .REPT/.ENDR, .ALIGN have
+    been added
 10) .OPT ERR, .OPT NO ERR, .OPT OBJ, .OPT NO OBJ have different
     behavior than the original (see section 3.14), all other .OPT
     directives are ignored.

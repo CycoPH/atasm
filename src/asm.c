@@ -134,6 +134,7 @@
 #include <stdarg.h>
 
 #include "compat.h"
+#include "atasm.h"
 #include "ops.h"
 #include "directive.h"
 #include "symbol.h"
@@ -376,13 +377,13 @@ char *get_nxt_word(int tp) {
   macro_call *mkill;
   macro_line *lkill;
 
-  if (tp==6) {
+  if (tp==PARSE_REPLACE_COMMAS) {
     look=fget;
     instr=0;
     while(*look) {
       if ((*look==',')&&(!instr)&&(*(look-1)!='\''))
-        *look=32;
-      if (*look==34)
+        *look=' ';  /* replace , with space */
+      if (*look=='"')   /* start or end of string */
         instr^=1;
       look++;
     }
@@ -392,14 +393,14 @@ char *get_nxt_word(int tp) {
   look=buf;
   *look=0;
 
-  if ((tp==1)||(tp==3)) {
+  if ((tp==PARSE_LINE_REST)||(tp==PARSE_PEEK_LINE_REST)) {
     if (!fget)
       return buf;
     strcpy(buf,fget);
     instr=0;
     len=strlen(buf);
     for(i=0;i<len;i++) {
-      if (buf[i]==34)    /* fix embedded ';' problem - mws 11/10/99 */
+      if (buf[i]=='"')    /* fix embedded ';' problem - mws 11/10/99 */
         instr^=1;
       else if ((buf[i]==';')&&(!instr)) {
         if ((i)&&(buf[i-1]=='\''))  /* allow quoted semicolons */
@@ -408,17 +409,17 @@ char *get_nxt_word(int tp) {
         break;
       }
     }
-    if (tp==1) {
+    if (tp==PARSE_LINE_REST) {
       fget=NULL;
     }
     return buf;
-  } else if (tp==2)
+  } else if (tp==PARSE_CURRENT_LINE)
     return line;
 
   /* skip over empty space, blank lines and comments */
   do {
     while ((!fget)||(!(*fget))) {
-      if (tp==4) {
+      if (tp==PARSE_NEXT_WORD) {
         buf[0]=0;
         return buf;
       }
@@ -429,7 +430,7 @@ char *get_nxt_word(int tp) {
       memset(buf,0,256);
       if (invoked) {  /* use macro table, if needed */
         strcpy(line,invoked->line->line);
-        if (tp!=5)
+        if (tp!=PARSE_SKIP)
           macro_subst(invoked->orig->name,line,invoked->cmd,invoked->argc);
         invoked->line=invoked->line->nxt;
         if (!invoked->line) {
@@ -466,7 +467,7 @@ char *get_nxt_word(int tp) {
       if (ISDIGIT(line[0])) {
         i=0;
         while(ISDIGIT(line[i]))
-          line[i++]=32;
+          line[i++]=' '; /* space = 32 */
       }
       /* Remove EOL characters */
       len=strlen(line);
@@ -506,7 +507,7 @@ char *get_nxt_word(int tp) {
     l=*fget;
     if (l)
       fget++;
-    if (l==34)
+    if (l=='"')
       instr^=1;
     if (!instr) {
       if (l=='=') {
@@ -906,7 +907,7 @@ int add_label(char *label) {
       sprintf(buf,"Cannot find label %s", label);
       error(buf,1);
     }
-    str=get_nxt_word(1);
+    str=get_nxt_word(PARSE_LINE_REST);
 
     if (pass) {
       squeeze_str(str);
@@ -1068,26 +1069,26 @@ int num_cvt(char *num) {
   if (!ISDIGIT(num[0])) {
     txt=num+1;
     if (num[0]=='$')
-      tp=1;
+      tp=IS_HEX;
     else if (num[0]=='~')
-      tp=2;
+      tp=IS_BINARY;
     else {
-      tp=0; /* remove annoying compiler warning */
+      tp=IS_DECIMAL; /* remove annoying compiler warning */
       error("Malformed numeric constant.",1);
     }
   } else {
-    tp=0;
+    tp=IS_DECIMAL;
     txt=num;
   }
 
   switch (tp) {
-  case 0:   /* decimal */
+  case IS_DECIMAL:   /* decimal */
     sscanf(txt,"%d",&v);
     break;
-  case 1:   /* hex */
+  case IS_HEX:      /* hex */
     sscanf(txt,"%x",&v);
     break;
-  case 2:   /* binary */
+  case IS_BINARY:   /* binary */
     v=0;
     bit=1;
     for(i=strlen(txt)-1;i>=0;i--) {
@@ -1150,7 +1151,7 @@ int to_comma(char *in, char *out) {
   }
   q=0;
   while (*look) {
-    if (*look==34)
+    if (*look=='"')
       q^=1;
     *out++=*look++;
     c++;
@@ -1178,7 +1179,7 @@ int do_float() {
   char buf[256];
   int d,c,p;
 
-  str=get_nxt_word(1);
+  str=get_nxt_word(PARSE_LINE_REST);
   while(ISSPACE(*str))
     str++;
   look=str+strlen(str)-1;
@@ -1207,7 +1208,7 @@ int do_float() {
 
     if ((pass)&&(verbose)&&(c==2)) {
       if (!p) {
-        aprintf("%s %s\n",outline,get_nxt_word(2));
+        aprintf("%s %s\n",outline,get_nxt_word(PARSE_CURRENT_LINE));
         p=1;
       } else {
         aprintf("%s\n",outline);
@@ -1219,7 +1220,7 @@ int do_float() {
 
   if ((pass)&&(verbose)&&(c)) {
     if (!p) {
-      aprintf("%s %s\n",outline,get_nxt_word(2));
+      aprintf("%s %s\n",outline,get_nxt_word(PARSE_CURRENT_LINE));
     } else {
       aprintf("%s\n",outline);
     }
@@ -1246,7 +1247,7 @@ int do_xword(int tp) {
   add=0;
   tp=(tp==3);
 
-  str=get_nxt_word(1);
+  str=get_nxt_word(PARSE_LINE_REST);
   while(ISSPACE(*str))
     str++;
   look=str+strlen(str)-1;
@@ -1266,8 +1267,8 @@ int do_xword(int tp) {
       c++;
     }
     switch(*look) {
-    case 9:
-    case 32:
+    case '\t':  /* \t = tab = 9*/
+    case ' ':   /* space = 32 */
       look++;
       break;
     case '+':
@@ -1281,7 +1282,7 @@ int do_xword(int tp) {
       if (!look)
         error("Useless statement.",0);
       break;
-    case 34:
+    case '"':
       error("String must be in xbyte format.",1);
       break;
     default:
@@ -1297,7 +1298,7 @@ int do_xword(int tp) {
     }
     if ((pass)&&(verbose)&&(c==3)) {
       if (!p) {
-        aprintf("%s %s\n",outline,get_nxt_word(2));
+        aprintf("%s %s\n",outline,get_nxt_word(PARSE_CURRENT_LINE));
         p=1;
       } else {
         aprintf("%s\n",outline);
@@ -1308,7 +1309,7 @@ int do_xword(int tp) {
   }
   if ((pass)&&(verbose)&&(c)) {
     if (!p) {
-      aprintf("%s %s\n",outline,get_nxt_word(2));
+      aprintf("%s %s\n",outline,get_nxt_word(PARSE_CURRENT_LINE));
     } else {
       aprintf("%s\n",outline);
     }
@@ -1336,7 +1337,7 @@ int do_xbyte(int tp) {
     error("No initial address specified.",1);
 
   add=cb=0;
-  str=get_nxt_word(1);
+  str=get_nxt_word(PARSE_LINE_REST);
   while(ISSPACE(*str))
     str++;
   look=str+strlen(str)-1;
@@ -1356,8 +1357,8 @@ int do_xbyte(int tp) {
       c++;
     }
     switch(*look) {
-    case 9:
-    case 32:
+    case '\t':  /* tab = 9 */
+    case ' ':   /* space = 32*/
       look++;
       break;
     case '+':
@@ -1371,12 +1372,12 @@ int do_xbyte(int tp) {
       if (!look)
         error("Useless statement.",0);
       break;
-    case 34:
+    case '"':
       d=to_comma(look,buf);
       look=look+d;
       d=strlen(buf)-1;
-      if ((d>255)||(((d<0)||(buf[0]!=34))&&(buf[d]!=34))||
-          ((d>0)&&(buf[0]==34)&&(buf[d]!=34))) {
+      if ((d>255)||(((d<0)||(buf[0]!='"'))&&(buf[d]!='"'))||
+          ((d>0)&&(buf[0]== '"')&&(buf[d]!='"'))) {
         error("Malformed string.",1);
       } else {
         if (pass)
@@ -1392,7 +1393,7 @@ int do_xbyte(int tp) {
           c++;
           if ((pass)&&(verbose)&&(c==6)) {
             if (!p) {
-              aprintf("%s %s\n",outline,get_nxt_word(2));
+              aprintf("%s %s\n",outline,get_nxt_word(PARSE_CURRENT_LINE));
               p=1;
             } else {
               aprintf("%s\n",outline);
@@ -1426,7 +1427,7 @@ int do_xbyte(int tp) {
 
     if ((pass)&&(verbose)&&(c==5)) {
       if (!p) {
-        aprintf("%s %s\n",outline,get_nxt_word(2));
+        aprintf("%s %s\n",outline,get_nxt_word(PARSE_CURRENT_LINE));
         p=1;
       } else {
         aprintf("%s\n",outline);
@@ -1437,7 +1438,7 @@ int do_xbyte(int tp) {
   }
   if ((pass)&&(verbose)&&(c)) {
     if (!p) {
-      aprintf("%s %s\n",outline,get_nxt_word(2));
+      aprintf("%s %s\n",outline,get_nxt_word(PARSE_CURRENT_LINE));
     } else {
       aprintf("%s\n",outline);
     }
@@ -1464,16 +1465,16 @@ int get_single(symbol *sym) {
   } else if (acc[sym->addr]<0) {
     error("Illegal operand",1);
   }
-  a=get_nxt_word(3);
+  a=get_nxt_word(PARSE_PEEK_LINE_REST);
   squeeze_str(a);
   if ((!strlen(a))||((strlen(a)==1)&&(TOUPPER(*a)=='A'))) {
-    a=get_nxt_word(1);
+    a=get_nxt_word(PARSE_LINE_REST);
     if (pass)
       put_opcode(acc[sym->addr]);
     else
       pc++;
   } else {
-    a=get_nxt_word(1);
+    a=get_nxt_word(PARSE_LINE_REST);
     squeeze_str(a);
     parse_operand(sym,a);
   }
@@ -1518,7 +1519,7 @@ int skip_if() {
   char *str;
 
   while(i>=0) {
-    str=get_nxt_word(5);
+    str=get_nxt_word(PARSE_SKIP);
     if (!str)
       error("Mismached .IF/.ELSE/.ENDIF statements.",1);
     if (!STRCASECMP(str,".IF"))
@@ -1556,7 +1557,7 @@ int proc_sym(symbol *sym) {
       error("6502 `illegal' opcode used without `.OPT ILL' or -u",1);
 
     if (num_args[sym->addr]) {
-      str=get_nxt_word(1);
+      str=get_nxt_word(PARSE_LINE_REST);
       squeeze_str(str);
       parse_operand(sym,str);
     } else {
@@ -1565,7 +1566,7 @@ int proc_sym(symbol *sym) {
     if ((verbose)&&(pass)) {
       while(strlen(outline)<16)
         strcat(outline," ");
-      line=get_nxt_word(2);
+      line=get_nxt_word(PARSE_CURRENT_LINE);
       aprintf("%s%s\n",outline,line);
       /*      if (invoked) {
   printf("\t\t[inside %s]\n",invoked->orig->name);
@@ -1576,53 +1577,53 @@ int proc_sym(symbol *sym) {
     break;
   case DIRECT:  /* system def */
     switch(sym->addr) {
-    case 0:  /* .BYTE */
-    case 1:  /* .SBYTE */
-    case 2:  /* .CBYTE */
+    case DOT_BYTE:  /* .BYTE */
+    case DOT_CBYTE:  /* .CBYTE */
+    case DOT_SBYTE:  /* .SBYTE */
       do_xbyte(sym->addr);
       break;
-    case 3:  /* .DBYTE */
+    case DOT_DBYTE:  /* .DBYTE */
       do_xword(sym->addr);
       break;
-    case 4: /* .ELSE */
+    case DOT_ELSE: /* .ELSE */
       skip_if();
       break;
-    case 5:  /* .END */
+    case DOT_END:  /* .END */
       break;
-    case 6: /* .ENDIF */
+    case DOT_ENDIF: /* .ENDIF */
       break;
-    case 7: /* .ERROR */
-      str=get_nxt_word(0);
+    case DOT_ERROR: /* .ERROR */
+      str=get_nxt_word(PARSE_NEXT_LINE);
       error(str,1);
       break;
-    case 8: /* .FLOAT */
+    case DOT_FLOAT: /* .FLOAT */
       do_float();
       break;
-    case 9: /* .IF */
-      str=get_nxt_word(1);
+    case DOT_IF: /* .IF */
+      str=get_nxt_word(PARSE_LINE_REST);
       squeeze_str(str);
       eq=0;
       addr=get_expression(str,1);
       if (!addr)
         skip_if();
       break;
-    case 10:  /* .INCLUDE */
-      str=get_nxt_word(0);
-      if (str[0]==34) {
+    case DOT_INCLUDE:  /* .INCLUDE */
+      str=get_nxt_word(PARSE_NEXT_LINE);
+      if (str[0]=='"') {
         str++;
         str[strlen(str)-1]=0;
       }
       open_file(str);
       break;
-    case 11: /* .LOCAL */
+    case DOT_LOCAL: /* .LOCAL */
       local++;
       if (local>62)
         error("Over 62 local regions defined, will not compile on MAC/65.",0);
       break;
-    case 12: { /* .OPT */
+    case DOT_OPT: { /* .OPT */
         int i,len,negated=0;
         do {
-          str=get_nxt_word(4);
+          str=get_nxt_word(PARSE_NEXT_WORD);
           len=strlen(str);
           for(i=0;i<len;i++) {
             str[i]=TOUPPER(str[i]);
@@ -1644,9 +1645,9 @@ int proc_sym(symbol *sym) {
         } while(strlen(str));
         break;
       }
-    case 14: /* .SET */
-      get_nxt_word(6);
-      str=get_nxt_word(4);
+    case DOT_SET: /* .SET */
+      get_nxt_word(PARSE_REPLACE_COMMAS);
+      str=get_nxt_word(PARSE_NEXT_WORD);
       if (!str)
         squeeze_str(str);
       if (strlen(str)) {
@@ -1655,7 +1656,7 @@ int proc_sym(symbol *sym) {
         /* only honor option 6 at the moment... */
         if (opt==6) {
           int ofs;
-          str=get_nxt_word(1);
+          str=get_nxt_word(PARSE_LINE_REST);
           squeeze_str(str);
           if (strlen(str)) {
             if (pass) {
@@ -1671,28 +1672,28 @@ int proc_sym(symbol *sym) {
           }
         } else {
           error("Unhandled .SET ignored",0);
-          str=get_nxt_word(1);
+          str=get_nxt_word(PARSE_LINE_REST);
         }
       }
       break;
-    case 13: /* .PAGE */
-    case 15: /* .TAB */
-    case 16: /* .TITLE */
+    case DOT_PAGE: /* .PAGE */
+    case DOT_TAB: /* .TAB */
+    case DOT_TITLE: /* .TITLE */
       do {
-        str=get_nxt_word(4);
+        str=get_nxt_word(PARSE_NEXT_WORD);
       } while(strlen(str));
       break;
-    case 17: /* .WORD */
+    case DOT_WORD: /* .WORD */
       do_xword(sym->addr);
       break;
-    case 18: /* '*' operator */
+    case DOT_STAR: /* '*' operator */
       if ((!eq)||(eq==2)) {
         error("Malformed * operator.",1);
       }
       if ((verbose)&&(pass))
         aprintf("\n");
       eq=0;
-      str=get_nxt_word(1);
+      str=get_nxt_word(PARSE_LINE_REST);
       squeeze_str(str);
       if (str[0]=='*') {  /* Relative adjustment */
         if (!init_pc)
@@ -1708,45 +1709,45 @@ int proc_sym(symbol *sym) {
         pc=addr;
       }
       break;
-    case 19:  /* .ENDM */
+    case DOT_ENDM:  /* .ENDM */
       error("No matching .MACRO definition for .ENDM",1);
       break;
-    case 20:  /* .MACRO definition */
+    case DOT_MACRO:  /* .MACRO definition */
       if (!pass)
         create_macro(sym);
       else
         skip_macro();
       eq=0;
       break;
-    case 21:  /* .DS directive */
-      str=get_nxt_word(1);
+    case DOT_DS:  /* .DS directive */
+      str=get_nxt_word(PARSE_LINE_REST);
       squeeze_str(str);
       addr=get_expression(str,1);
       pc=pc+addr;
       break;
-    case 22: /* .INCBIN */
-      str=get_nxt_word(0);
-      if (str[0]==34) {
+    case DOT_INCBIN: /* .INCBIN */
+      str=get_nxt_word(PARSE_NEXT_LINE);
+      if (str[0]=='"') {
         str++;
         str[strlen(str)-1]=0;
       }
       incbin(str);
       break;
-    case 23: /* .REPT */
+    case DOT_REPT: /* .REPT */
       do_rept(sym);
       break;
-    case 24:  /* .ENDR */
+    case DOT_ENDR:  /* .ENDR */
       error("No matching .REPT definition for .ENDR",1);
       break;
-    case 25: /* .WARN */
-      str=get_nxt_word(0);
+    case DOT_WARN: /* .WARN */
+      str=get_nxt_word(PARSE_NEXT_LINE);
       error(str,0);
       break;
-    case 26: /* .DC */
-      str=get_nxt_word(0);
+    case DOT_DC: /* .DC */
+      str=get_nxt_word(PARSE_NEXT_LINE);
       addr=get_expression(str,1);
 
-      str=get_nxt_word(0);
+      str=get_nxt_word(PARSE_NEXT_LINE);
       stor=get_expression(str,1);
 
       for(i=0;i<addr;i++) {
@@ -1765,25 +1766,25 @@ int proc_sym(symbol *sym) {
         aprintf("%s\n",outline);
       outline[0]=0;
       break;
-    case 27: { /* .BANK */
+    case DOT_BANK: { /* .BANK */
       unsigned short symbolID=0;
       int p1,p2;
 
       p1=p2=-1;
-      str=get_nxt_word(3);
+      str=get_nxt_word(PARSE_PEEK_LINE_REST);
       if (strlen(str)) {
         squeeze_str(str);
         if (str[0]==',')
           p2=-2;
 
-        get_nxt_word(6);
-        str=get_nxt_word(4);
+        get_nxt_word(PARSE_REPLACE_COMMAS);
+        str=get_nxt_word(PARSE_NEXT_WORD);
         if (strlen(str)) {
           squeeze_str(str);
           if (strlen(str)) {
             p1=get_expression(str,1);
           }
-          str=get_nxt_word(4);
+          str=get_nxt_word(PARSE_NEXT_WORD);
           if (strlen(str)) {
             squeeze_str(str);
             if (strlen(str)) {
@@ -1816,9 +1817,33 @@ int proc_sym(symbol *sym) {
       }
       /* Skip for now... */
       do {
-        str=get_nxt_word(4);
+        str=get_nxt_word(PARSE_NEXT_WORD);
       } while(strlen(str));
       break;
+    }
+    case DOT_ALIGN: { /* .ALIGN */
+        int ok = 0;
+        if (!init_pc)
+            error("No inital address specified.", 1);
+        str = get_nxt_word(PARSE_LINE_REST);
+        squeeze_str(str);
+        if (strlen(str) == 0) {
+            error("Need to specify an alignment boundary", 1);
+        }
+        init_pc = 1;
+        addr = get_expression(str, 1);
+        /* Valid boundary values are 2^n (n=0-15) */
+        for (i = 0; i < 16; ++i) {
+            if ((1 << i) == (unsigned short)addr) {
+                pc = (pc + addr - 1) & (0x10000 - addr);
+                ok = 1;
+                break;
+            }
+        }
+        if (ok == 0) {
+            error("Align boundary needs to be power of 2", 1);
+        }
+        break;
     }
     default:
       error("Illegal directive.",1);
@@ -1849,7 +1874,7 @@ int proc_sym(symbol *sym) {
         snprintf(buf,80,"Symbol '%s' is not a transitory equate!",sym->name);
         error(buf,1);
       }
-      str=get_nxt_word(1);
+      str=get_nxt_word(PARSE_LINE_REST);
       if (eq==2) {
         squeeze_str(str);
         addr=get_address(str);
@@ -1894,7 +1919,7 @@ int proc_sym(symbol *sym) {
         snprintf(buf,80,"Cannot use label '%s' as an equate",sym->name);
         error(buf,1);
       }
-      str=get_nxt_word(1);
+      str=get_nxt_word(PARSE_LINE_REST);
       if (sym->addr==0xffff) {  /* allow forward equate references */
         squeeze_str(str);
         addr=get_address(str);
@@ -1908,7 +1933,7 @@ int proc_sym(symbol *sym) {
   case TEQUATE: /* transitory equates */
     if (!pass) {
       if (eq==2) {
-        str=get_nxt_word(1);
+        str=get_nxt_word(PARSE_LINE_REST);
 
         /* even in first pass allow .= updates for .IFs */
         squeeze_str(str);
@@ -1924,7 +1949,7 @@ int proc_sym(symbol *sym) {
       }
     } else {
       if (eq==2) {   /* allow .= updates */
-        str=get_nxt_word(1);
+        str=get_nxt_word(PARSE_LINE_REST);
         squeeze_str(str);
         addr=get_address(str);
         sym->addr=addr;
@@ -2004,13 +2029,13 @@ int assemble(char *fname) {
     fflush(stderr);
     open_file(fname);
     do {
-      str=get_nxt_word(0);
+      str=get_nxt_word(PARSE_NEXT_LINE);
       if (str) {
         do_cmd(str);
       }
       if (repass) {
         fixRepass();
-        while(get_nxt_word(0))
+        while(get_nxt_word(PARSE_NEXT_LINE))
           ;
         break;
       }

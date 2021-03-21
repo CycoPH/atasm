@@ -31,6 +31,7 @@
     <ClCompile Include="src\symbol.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\atasm.h" />
     <ClInclude Include="src\atasm_err.h" />
     <ClInclude Include="src\compat.h" />
     <ClInclude Include="src\directive.h" />

@@ -59,5 +59,8 @@
     <ClInclude Include="src\ops.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\atasm.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

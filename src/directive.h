@@ -21,12 +21,43 @@
 #ifndef DIRECTIVE_H
 #define DIRECTIVE_H
 
-#define NUM_DIR 28
+#define NUM_DIR 29
 
-char *direct[]={".BYTE",".CBYTE",".SBYTE",".DBYTE",".ELSE",".END",".ENDIF",
+/* Give names to the 'directives' entries */
+#define DOT_BYTE 0
+#define DOT_CBYTE 1
+#define DOT_SBYTE 2
+#define DOT_DBYTE 3
+#define DOT_ELSE 4
+#define DOT_END 5
+#define DOT_ENDIF 6
+#define DOT_ERROR 7
+#define DOT_FLOAT 8
+#define DOT_IF 9
+#define DOT_INCLUDE 10
+#define DOT_LOCAL 11
+#define DOT_OPT 12
+#define DOT_PAGE 13
+#define DOT_SET 14
+#define DOT_TAB 15
+#define DOT_TITLE 16
+#define DOT_WORD 17
+#define DOT_STAR 18
+#define DOT_ENDM 19
+#define DOT_MACRO 20
+#define DOT_DS 21
+#define DOT_INCBIN 22
+#define DOT_REPT 23
+#define DOT_ENDR 24
+#define DOT_WARN 25
+#define DOT_DC 26
+#define DOT_BANK 27
+#define DOT_ALIGN 28
+
+char *direct[NUM_DIR]={".BYTE",".CBYTE",".SBYTE",".DBYTE",".ELSE",".END",".ENDIF",
 		".ERROR",".FLOAT",".IF",".INCLUDE",".LOCAL",".OPT",".PAGE",
 		".SET",".TAB",".TITLE",".WORD","*",".ENDM",".MACRO",".DS",
-		".INCBIN",".REPT",".ENDR",".WARN",".DC",".BANK"};
+		".INCBIN",".REPT",".ENDR",".WARN",".DC",".BANK",".ALIGN"};
 
 unsigned char ascii_to_screen[128] =
 {

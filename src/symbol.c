@@ -44,6 +44,7 @@
 #include <ctype.h>
 
 #include "compat.h"
+#include "atasm.h"
 #include "symbol.h"
 #include "inc_path.h"
 #include "atasm_err.h"
@@ -688,11 +689,11 @@ int macro_subst(char *name, char *in, macro_line *args, int max) {
               cmd=cmd->nxt;
               pnum--;
             }
-            if ((cmd->line[0]==34)&&(!stype)) {  /* numeric value for string */
+            if ((cmd->line[0]=='"')&&(!stype)) {  /* numeric value for string */
               int len=strlen(cmd->line)-2;
               snprintf(num,256,"%d",len); /* return str len */
               strcpy(walk,num);
-            } else if ((cmd->line[0]!=34)&&(stype)) { /* string val for num */
+            } else if ((cmd->line[0]!='"')&&(stype)) { /* string val for num */
               /* FIXME to return correct string name--any rules for this?*/
               i=0;
               while((cmd->line[i])&&!ISALPHA(cmd->line[i]))
@@ -727,7 +728,7 @@ int create_macro(symbol *sym) {
   symbol *entry;
   char *up;
 
-  str=get_nxt_word(0);
+  str=get_nxt_word(PARSE_NEXT_LINE);
   if (!str)
     error("No macro name specified.",1);
   m=(macro *)malloc(sizeof(macro));
@@ -761,7 +762,7 @@ int create_macro(symbol *sym) {
   tail=NULL;
 
   while(1) {
-    str=get_nxt_word(0);
+    str=get_nxt_word(PARSE_NEXT_LINE);
     if (!str)
       error("Unterminated Macro",1);
 
@@ -770,8 +771,8 @@ int create_macro(symbol *sym) {
     if (!STRCASECMP(str,".MACRO"))
       error("No nested macro definitions.",1);
 
-    str=get_nxt_word(2);  /* Retrieve entire line */
-    get_nxt_word(1);      /* Reset line to force read */
+    str=get_nxt_word(PARSE_CURRENT_LINE);  /* Retrieve entire line */
+    get_nxt_word(PARSE_LINE_REST);      /* Reset line to force read */
     m->num++;
     line=(macro_line *)malloc(sizeof(macro_line));
     if (!line) {
@@ -822,9 +823,9 @@ int macro_param(macro_call *mc, char *cmd) {
   n=0;
   tail=NULL;
 
-  get_nxt_word(6); /* replace commas */
+  get_nxt_word(PARSE_REPLACE_COMMAS); /* replace commas */
   while(1) {
-    param=get_nxt_word(4);
+    param=get_nxt_word(PARSE_NEXT_WORD);
     if (!strlen(param)) {
       mc->argc=n;
       return 0;
@@ -858,7 +859,7 @@ int skip_macro() {
   char *str;
 
   while(1) {
-    str=get_nxt_word(0);
+    str=get_nxt_word(PARSE_NEXT_LINE);
     if (!STRCASECMP(str,".ENDM"))
       break;
   }
@@ -903,7 +904,7 @@ int do_rept(symbol *sym) {
   macro_call *rept;
   unsigned int num;
 
-  str=get_nxt_word(0);
+  str=get_nxt_word(PARSE_NEXT_LINE);
   if (!str)
     error("No repetition parameter specified.",1);
 
@@ -935,7 +936,7 @@ int do_rept(symbol *sym) {
   tail=NULL;
 
   while(1) {
-    str=get_nxt_word(0);
+    str=get_nxt_word(PARSE_NEXT_LINE);
     if (!str)
       error("Unterminated repeat statement",1);
 
@@ -948,8 +949,8 @@ int do_rept(symbol *sym) {
       error("No macro definitions inside repeat blocks.",1);
     }
 
-    str=get_nxt_word(2);  /* Retrieve entire line */
-    get_nxt_word(1);      /* Reset line to force read */
+    str=get_nxt_word(PARSE_CURRENT_LINE);  /* Retrieve entire line */
+    get_nxt_word(PARSE_LINE_REST);      /* Reset line to force read */
     line=(macro_line *)malloc(sizeof(macro_line));
     if (!line) {
       error("Error allocting memory for repeat.", 1);
