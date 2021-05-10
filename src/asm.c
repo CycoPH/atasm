@@ -93,6 +93,11 @@
  *               get_signed_expression() function aka CVE-2019-19787
  *               Fixed stacked-base buffer overflow in the parse_expr()
  *               function, aka  CVE-2019-19786
+ *  05/10/21 ph  Fixed #7 Error calculating address with forward references
+ *               If lda ..,x was used the forward reference was not 
+ *               correctly calculated.  Fix was to never return an invalid
+ *               forward reference, nor one that rolls over to 0. 
+ *               65535+1 would have been 0, now it stays at 65535
  *==========================================================================*
  * TODO
  *   indepth testing of .IF,.ELSE,.ENDIF (signal error on mismatches?)
@@ -968,7 +973,7 @@ int parse_operand(symbol *sym, char *str) {
       if (pass)
         a=get_address(str);
 
-      if (sym->addr==30) { /* JMP indirect abs */
+      if (sym->addr==OPI_JMP) { /* JMP indirect abs */
         if (vidx)
           error("Illegal indirect JMP",1);
         cmd=ind[sym->addr];
@@ -1029,7 +1034,7 @@ int parse_operand(symbol *sym, char *str) {
           } else {
             if (a<256) {
               cmd=zpg[sym->addr];
-              if ((sym->addr==30)||(sym->addr==31))
+              if ((sym->addr==OPI_JMP)||(sym->addr==OPI_JSR))
                 xtnd=1;          /* pad "zero-page" jump */
             } else
               cmd=abl[sym->addr];
@@ -1041,8 +1046,8 @@ int parse_operand(symbol *sym, char *str) {
           put_byte(a>>8);
       } else {
         if ((a<256)||(rel[sym->addr]>=0)) {
-          if ((sym->addr==30)|| /* pad a few zero-page opcodes */
-              (sym->addr==31)||
+          if ((sym->addr==OPI_JMP)|| /* pad a few zero-page opcodes */
+              (sym->addr==OPI_JSR)||
               ((vidx=='Y')&&((a_y[sym->addr]==z_y[sym->addr]))))
             pc+=3;
           else

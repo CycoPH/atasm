@@ -25,6 +25,14 @@
 #define NUM_OPS 79
 #define LEGAL_OPS 59
 
+/* Name the ops by giving each one a #define which we can use in the 
+ * rest of the assembler and not have to worry about numbers as index
+ * into this table
+ */
+#define OPI_JMP 30
+#define OPI_JSR 31
+
+
 char *nmem[]={"ADC","AND","ASL","ASR","BCC","BCS","BEQ","BGE","BIT","BLT",
               "BMI","BNE","BPL","BRK","BVC","BVS","CLC","CLD","CLI","CLV",
               "CMP","CPX","CPY","DEC","DEX","DEY","EOR","INC","INX","INY",
