@@ -325,7 +325,7 @@ int open_file(char *fname) {
  * being processed.  This allows for nested .INCLUDEs
  *=========================================================================*/
 void aprintf(char *msg, ...) {
-  char buf[256], line[256];
+  char buf[512], line[512];     /* Increased the size of the buffers.  Each line can be 256 bytes but in this case the output can be over the line length */
   static char *lfin=0;
 
   va_list args;
