@@ -84,3 +84,16 @@ March 20, 2021
                  Fixed CVE-2019-19785: Stack-based buffer overflow in the to_comma() function;
                  Fixed CVE-2019-19786: Stack-based buffer overflow in the parse_expr() function;
                  Fixed CVE-2019-19787: Stack-based buffer overflow in the get_signed_expression() function;
+
+May 10, 2021
+  version 1.10 - Fixes absolute address calculation in the case where of lda abs,x
+                 If the address was undefined but used an offset like (here+1) the code would
+                 place the address into page 0.
+				 Fixed a buffer overflow in aprintf()
+
+May 14, 2021
+  version 1.11 - Fixes buffer overrun in put_float().
+				 Changes the output format of the list command slightly to allow source level
+				 debugging in the Altirra emulator.  The list file has to starts with "mads "
+				 Adds support to pass Altirra specific ;##TRACE and ;##ASSERT commands from
+				 the source code to the listing file (to be read and interpreted by Altirra)
