@@ -103,6 +103,8 @@
  *               to allow source level debugging in the Altirra emulator.
  *               Allows for ;##TRACE and ;##ASSERT Altirra commands to be
  *               inserted into the source code.
+ *  28/11/21 ph  Added code to print the defined symbol for a memory location
+ *               even if its defined on another line
  *==========================================================================*
  * TODO
  *   indepth testing of .IF,.ELSE,.ENDIF (signal error on mismatches?)
@@ -166,6 +168,9 @@ file_stack *fin;
 memBank *banks, *activeBank;
 int bankID;
 char *outline;  /* the line of text written out in verbose mode */
+
+symbol* lastSymbol = NULL;
+int lastSymbolLineNr = 0;
 
 FILE *listFile;
 /*=========================================================================*
@@ -277,6 +282,7 @@ int init_asm() {
     sym->tp=OPCODE;
     sym->addr=i;
     sym->name=nmem[i];
+    sym->orig = sym->name;
     addsym(sym);
   }
   for(i=0;i<NUM_DIR;i++) { /* insert compiler directives into table */
@@ -284,6 +290,7 @@ int init_asm() {
     sym->tp=DIRECT;
     sym->addr=i;
     sym->name=direct[i];
+    sym->orig=sym->name;
     addsym(sym);
   }
   return 1;
@@ -765,18 +772,20 @@ int put_opcode(int b) {
 
   prints the current PC address to output string (or appropriate padding,
   if PC is undefined)
+  Returns the PC address (or 0)
  *=========================================================================*/
 int print_pc() {
   char buf[32];
+  int opc = 0;
 
   if (!init_pc)
     snprintf(buf,32,"      ");
   else {
-    int opc=(pc+activeBank->offset)&0xffff;
+    opc=(pc+activeBank->offset)&0xffff;
     snprintf(buf,32,"%.2X:%.2X  ",opc&0xff,opc>>8);
   }
   strcat(outline,buf);
-  return 0;
+  return opc;
 }
 /*=========================================================================*
   function get_address(char *str)
@@ -845,6 +854,8 @@ int add_label(char *label) {
     if (strchr(label,'='))
       error("Illegal label (cannot contain '=')",1);
     sym=get_sym();
+    /* Set the original name of the symbol, nothing is processed yet */
+    sym->orig = STRDUP(label);
     if (label[0]=='?') {
       if (opt.MAElocals) {
         int len;
@@ -887,6 +898,7 @@ int add_label(char *label) {
         invoked=NULL;
         if (!findsym(label)) {
           symbol *nsym=get_sym();
+          nsym->orig = STRDUP(label);
           nsym->name=(char *)malloc(strlen(label)+1);
           if (!nsym->name) {
             error("Cannot allocate room for macro during macro instantiation.", 1);
@@ -1565,13 +1577,15 @@ int proc_sym(symbol *sym) {
   int i,stor;
   macro_call *mc;
   char buf[80];
+  int currentPC;        /* current PC*/
 
   switch (sym->tp) {
   case OPCODE:  /* opcode */
     if (!init_pc)
       error("No initial address specified.",1);
-    if ((verbose)&&(pass))
-      print_pc();
+    if ((verbose) && (pass)) {
+        currentPC = print_pc();
+     }
 
     if(sym->addr >= LEGAL_OPS && !opt.ill)
       error("6502 `illegal' opcode used without `.OPT ILL' or -u",1);
@@ -1584,6 +1598,11 @@ int proc_sym(symbol *sym) {
       get_single(sym);
     }
     if ((verbose)&&(pass)) {
+        if (lastSymbol && lastSymbol->addr == currentPC && lastSymbolLineNr != fin->line) {
+            /* Write the symbol name to the outline*/
+            sprintf(buf, " %s ", lastSymbol->orig);
+            strcat(outline, buf);
+        }
       while(strlen(outline)<16)
         strcat(outline," ");
       line=get_nxt_word(PARSE_CURRENT_LINE);
@@ -2002,7 +2021,7 @@ int do_cmd(char *buf) {
     buf[i]=TOUPPER(buf[i]);
 
   sym=findsym(buf);
-
+  
   if ((!sym)||((sym->tp==MACROL)&&(!sym->macroShadow))) {
     /* must be a label or define */
     add_label(buf);
@@ -2011,8 +2030,16 @@ int do_cmd(char *buf) {
       if (!strchr(sym->name,'?'))
         opt.MAEname=sym->name;
     }
+    //if (sym && sym->tp == LABEL)
+    //    lastSymbol = sym;
   } else {
     proc_sym(sym);
+    if (pass && sym && sym->tp == LABEL) {
+        lastSymbol = sym;
+        lastSymbolLineNr = fin->line;
+    }
+    else
+        lastSymbol = NULL;
   }
   return 1;
 }
@@ -2304,6 +2331,8 @@ void process_predef(str_list *head) {
 
     sym->name=malloc(strlen(def)+1);
     strcpy(sym->name,def);
+
+    sym->orig = STRDUP(def);
 
     svalue=strchr(sym->name,'=');
     if(svalue==NULL) {

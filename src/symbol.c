@@ -383,7 +383,7 @@ symbol *get_sym() {
     error("Out of memory allocating new symbol.", 1);
   }
   sym->nxt=sym->lnk=sym->mlnk=NULL;
-  sym->name=sym->macroShadow=NULL;
+  sym->orig=sym->name=sym->macroShadow=NULL;
   sym->ref=sym->tp=sym->addr=sym->bank=sym->num=0;
   return sym;
 }

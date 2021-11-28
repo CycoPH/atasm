@@ -22,7 +22,7 @@
 #define SYMBOL_H
 
 #define MAJOR_VER 1
-#define MINOR_VER 11
+#define MINOR_VER 12
 #define BETA_VER 0
 
 /*==========================================================================*/
@@ -35,6 +35,7 @@ typedef struct memBank {
 /*==========================================================================*/
 typedef struct symbol {  /* Symbol table entry */
   char *name;
+  char *orig;
   /* tp:
      0: opcode
      1: directive
