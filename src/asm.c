@@ -2380,13 +2380,17 @@ int find_extension(char *name) {
  *=========================================================================*/
 int main(int argc, char *argv[]) {
   char outfile[256],fname[256],snap[256],xname[256],labelfile[256],listfile[256];
+  char cheaderfile[256], asmheaderfile[256];
   int dsymbol,i,state;
+
+  int create_c_header_fn, create_asm_header_fn;
 
   fprintf(stderr,"ATasm %d.%.2d%s(A mostly Mac65 compatible 6502 cross-assembler)\n",MAJOR_VER,MINOR_VER,BETA_VER?" beta ":" ");
 
+  create_c_header_fn = create_asm_header_fn = 0;
   dsymbol=state=0;
   strcpy(snap,"atari800.a8s");
-  fname[0]=outfile[0]=labelfile[0]=listfile[0]='\0';
+  fname[0]=outfile[0]=labelfile[0]=listfile[0]=cheaderfile[0]=asmheaderfile[0]='\0';
   opt.savetp=opt.verbose=opt.MAElocals=0;
   opt.fillByte=0xff;
 
@@ -2425,7 +2429,24 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Must specify label output file for -l (example: -llabels.lab)\n");
         return 1;
       }
-    }
+    } 
+	else if (!STRNCASECMP(argv[i], "-hc", 3))
+	{
+		if (strlen(argv[i]) > 3) {
+			strcpy(cheaderfile, argv[i] + 3);
+		}
+		else {
+            create_c_header_fn = 1;
+		}
+	}
+	else if (!STRNCASECMP(argv[i], "-ha", 3)) {
+		if (strlen(argv[i]) > 3) {
+			strcpy(asmheaderfile, argv[i] + 3);
+		}
+		else {
+            create_asm_header_fn = 1;
+		}
+	}
     else if (!STRNCASECMP(argv[i],"-g",2)) {
       if (strlen(argv[i])>2) {
         strcpy(listfile, argv[i]+2);
@@ -2485,6 +2506,8 @@ int main(int argc, char *argv[]) {
       fputs("         -g[fname]: dumps debug list to file [fname]\n",stderr);
       fputs("         -Idirectory: search [directory] for .INCLUDE files\n",stderr);
       fputs("         -mae: treats local labels like MAE assembler\n",stderr);
+      fputs("         -hc[fname]: dumps equates and labels to header file for CC65\n", stderr);
+      fputs("         -ha[fname]: dumps equates and labels to header file for assembler\n", stderr);
       return 1;
     } else strcpy(fname,argv[i]);
   }
@@ -2492,6 +2515,12 @@ int main(int argc, char *argv[]) {
   if (!strlen(fname)) {
     strcpy(fname,"test.m65");
   }
+
+  /* If the -hc or -ha options did not specify a filename lets create them now */
+  if (create_c_header_fn)
+      sprintf(cheaderfile, "%s.h", fname);
+  if (create_asm_header_fn)
+      sprintf(asmheaderfile, "%s.inc", fname);
 
   init_asm();
   assemble(fname);
@@ -2501,6 +2530,12 @@ int main(int argc, char *argv[]) {
 
   if (labelfile[0])
     dump_labels(labelfile);
+
+  if (cheaderfile[0])
+      dump_c_header(cheaderfile, fname);
+
+  if (asmheaderfile[0])
+      dump_assembler_header(asmheaderfile);
 
   fputs("\nAssembly successful\n",stderr);
   fprintf(stderr,"  Compiled %d bytes (~%dk)\n",bsize,bsize/1024);

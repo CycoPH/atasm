@@ -22,7 +22,7 @@
 #define SYMBOL_H
 
 #define MAJOR_VER 1
-#define MINOR_VER 12
+#define MINOR_VER 13
 #define BETA_VER 0
 
 /*==========================================================================*/
@@ -35,7 +35,7 @@ typedef struct memBank {
 /*==========================================================================*/
 typedef struct symbol {  /* Symbol table entry */
   char *name;
-  char *orig;
+  char *orig;   /* original name, no ? processing yet */
   /* tp:
      0: opcode
      1: directive
@@ -144,6 +144,8 @@ void remsym(symbol *wrd);
 symbol *get_sym();
 int dump_symbols();
 int dump_labels(char *fname);
+int dump_c_header(char *header_fname, char *asm_fname);
+int dump_assembler_header(char* header_fname);
 macro_call *get_macro_call(char *name);
 int macro_subst(char *name, char *in, macro_line *cmd, int max);
 int create_macro(symbol *sym);

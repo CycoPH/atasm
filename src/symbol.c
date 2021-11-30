@@ -574,6 +574,147 @@ int dump_labels(char *fname) {
   fclose(out);
   return 0;
 }
+
+/*=========================================================================*
+ * function dump_c_header
+ * prints out all symbols entered into the symbol table in c header format
+ *=========================================================================*/
+int dump_c_header(char* header_fname, char* asm_fname)
+{
+    symbol* sym, * head;
+    char cheader_name[256];
+    char base_name[256];
+    unsigned char* runner;
+    FILE* out;
+
+    /* Generate the #if check name */
+    for (runner = asm_fname + strlen(asm_fname); runner >= asm_fname; runner--) 
+    {
+        if (*runner == '/' || *runner == '\\')
+            break;
+    }
+
+    if (runner >= asm_fname) {
+        strcpy(cheader_name, runner + 1);
+    }
+    else {
+        /* There is no delimiter: the entire string must be a filename. */
+        strcpy(cheader_name, asm_fname);
+    }
+
+    /* Find the basename of the file (no extension). We stop at the first . */
+    for (runner = cheader_name; *runner && *runner != '.'; ++runner);
+    memset(base_name, 0, sizeof(base_name));
+    strncpy(base_name, cheader_name, runner - cheader_name);
+
+    /* Figure out the ifndef name for the header file */
+    for (runner = cheader_name; *runner; ++runner) {
+        *runner = toupper(*runner);
+        if (*runner == '.')
+            *runner = '_';
+    }
+
+    for (runner = base_name; *runner; ++runner) {
+        *runner = toupper(*runner);
+    }
+
+    out = fopen(header_fname, "wb");
+    if (!out)
+        return 0;    
+
+    fprintf(out, "#ifndef _%s_\n", cheader_name);
+    fprintf(out, "#define _%s_\n\n", cheader_name);
+
+    head = linkit();
+    if (!head) {
+        fclose(out);
+        return 0;
+    }
+    head = sym = sort(head);
+
+    while (sym)
+    {
+        if (sym->name[0])
+        {
+            if (sym->tp == EQUATE)
+            {
+                fprintf(out, "#define %s_%s\t0x%.4X\n", base_name, sym->name, sym->addr & 0xffff);
+            }
+        }
+        sym = sym->lnk;
+    }
+
+    sym = head;
+    while (sym) 
+    {
+        if (sym->name[0]) 
+        {
+            if ( (sym->tp == LABEL) && (sym->name[0] != '=')) 
+            {
+                fprintf(out, "#define %s_%s\t0x%.4X\n", base_name, sym->name, sym->addr & 0xffff );
+            }
+        }
+        sym = sym->lnk;
+    }
+
+    fprintf(out, "\n#endif\n");
+    fclose(out);
+    return 0;
+}
+
+
+/*=========================================================================*
+ * function dump_assembler_header
+ * prints out all equates and symbols entered into the symbol table in
+ * atasm equate format
+ *=========================================================================*/
+int dump_assembler_header(char* header_fname)
+{
+    symbol* sym, * head;
+    FILE* out;
+
+    out = fopen(header_fname, "wb");
+    if (!out)
+        return 0;
+
+    head = linkit();
+    if (!head) {
+        fclose(out);
+        return 0;
+    }
+    head = sym = sort(head);
+
+    fprintf(out, "\n; CONSTANTS\n");
+    while (sym)
+    {
+        if (sym->name[0])
+        {
+            if (sym->tp == EQUATE)
+            {
+                fprintf(out, "%s\t=\t$%.4X\n", sym->name, sym->addr & 0xffff);
+            }
+        }
+        sym = sym->lnk;
+    }
+
+    fprintf(out, "\n; LABELS\n");
+    sym = head;
+    while (sym)
+    {
+        if (sym->name[0])
+        {
+            if ((sym->tp == LABEL) && (sym->name[0] != '='))
+            {
+                fprintf(out, "%s\t=\t$%.4X\n", sym->name, sym->addr & 0xffff);
+            }
+        }
+        sym = sym->lnk;
+    }
+
+    fclose(out);
+    return 0;
+}
+
 /*=========================================================================*
   function get_macro_call
   parameter: name- name of macro to find
