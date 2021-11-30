@@ -605,7 +605,7 @@ int dump_c_header(char* header_fname, char* asm_fname)
     /* Find the basename of the file (no extension). We stop at the first . */
     for (runner = cheader_name; *runner && *runner != '.'; ++runner);
     memset(base_name, 0, sizeof(base_name));
-    strncpy(base_name, cheader_name, runner - cheader_name);
+    strncpy(base_name, cheader_name, (char*)runner - cheader_name);
 
     /* Figure out the ifndef name for the header file */
     for (runner = cheader_name; *runner; ++runner) {
