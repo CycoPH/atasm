@@ -22,8 +22,16 @@
 #define SYMBOL_H
 
 #define MAJOR_VER 1
-#define MINOR_VER 13
+#define MINOR_VER 14
 #define BETA_VER 0
+
+
+ /*==========================================================================*/
+typedef struct file_tracking /* Track the filename */
+{
+    char* name;
+    struct file_tracking* nxt;
+} file_tracking;
 
 /*==========================================================================*/
 typedef struct memBank {
@@ -54,7 +62,11 @@ typedef struct symbol {  /* Symbol table entry */
   char *macroShadow;
   struct symbol *nxt;
   struct symbol *lnk, *mlnk;
+  /* Track the source of the symbol */
+  int lineNr;
+  struct file_tracking* ftrack;
 } symbol;
+
 /*==========================================================================*/
 typedef struct unkLabel {
   char *label;
@@ -82,7 +94,9 @@ typedef struct file_stack { /* File process entry */
   FILE *in;
   int line;
   struct file_stack *nxt;
+  struct file_tracking *ftrack;
 } file_stack;
+
 /*==========================================================================*/
 typedef struct macro_line { /* an entry in a macro */
   char *line;

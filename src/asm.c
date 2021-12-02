@@ -105,6 +105,15 @@
  *               inserted into the source code.
  *  28/11/21 ph  Added code to print the defined symbol for a memory location
  *               even if its defined on another line
+ *  01/12/21 ph  Added -hc and -ha switches.  Dumps equated and symbol info
+ *               in CC65 header and Atasm include format.
+ *
+ *               RELEASE 1.14
+ * 
+ * 02/12/21 ph  -hc and -ha switch dumps now include the source file and line
+ *              number where the equate or label was defined.
+ *              Labels can now contain .
+ *              i.e. DATA.CMD, DATA.LEN, DATA.AUX
  *==========================================================================*
  * TODO
  *   indepth testing of .IF,.ELSE,.ENDIF (signal error on mismatches?)
@@ -116,6 +125,7 @@
  *
  * COMPLETED TODO
  *   determine how to allow INITAD ($2e2) (10/08/2003 use .BANK directive)
+ *   allow '.' within label names
  *
  * Bugs: see kill.asm
  *   ORA #16                              (fixed 12/18/98 mws)
@@ -170,7 +180,7 @@ int bankID;
 char *outline;  /* the line of text written out in verbose mode */
 
 symbol* lastSymbol = NULL;
-int lastSymbolLineNr = 0;
+file_tracking* trackedFiles;
 
 FILE *listFile;
 /*=========================================================================*
@@ -260,6 +270,7 @@ int init_asm() {
   unkLabels=NULL;
   banks=NULL;
   bankID=-1;
+  trackedFiles = NULL; /* keep track of all filenames used, 0 indexed */
 
   for(i=0;i<HSIZE;i++)  /* clear symbol table */
     hash[i]=NULL;
@@ -296,16 +307,44 @@ int init_asm() {
   return 1;
 }
 /*=========================================================================*
+ * function track_filename(char *fname)
+ * parameters: fname is the file name to track
+ *=========================================================================*/
+file_tracking* track_filename(char* fname)
+{
+    /* First try and find the filename in the currently tracked list */
+    file_tracking* runner;
+    for (runner = trackedFiles; runner; runner = runner->nxt)
+    {
+        if (strcmp(fname, runner->name) == 0)
+            return runner;
+    }
+
+    /* not found, let add the file to the list */
+    file_tracking* tnew = (file_tracking*)malloc(sizeof(file_tracking));
+    if (tnew == NULL) {
+        error("Out of memory allocating filename tracker", 1);
+    }
+    tnew->name = STRDUP(fname);
+    tnew->nxt = trackedFiles;
+    trackedFiles = tnew;
+    
+    return tnew;
+}
+
+
+/*=========================================================================*
  * function open_file(char *fname)
  * parameters: fname is the file name to process
  *
  * this functions adds a new file onto the current file processing stack
- * The file stack structure saves the state of each file as it is is
+ * The file stack structure saves the state of each file as it is
  * being processed.  This allows for nested .INCLUDEs
  *=========================================================================*/
 int open_file(char *fname) {
   file_stack *fnew;
   char buf[256];
+  char final_fname[256];
 
   fnew=(file_stack *)malloc(sizeof(file_stack));
   if (!fnew) {
@@ -317,13 +356,14 @@ int open_file(char *fname) {
   }
   strcpy(fnew->name,fname);
 
-  fnew->in = fopen_include(includes, fname, 0);
+  fnew->in = fopen_include(includes, fname, 0, final_fname);
   if (!fnew->in) {
     snprintf(buf,256,"Cannot open file '%s'\n",fname);
     error(buf,1);
   }
   fnew->line=0;
   fnew->nxt=fin;
+  fnew->ftrack = track_filename(final_fname);
   fin=fnew;
   return 1;
 }
@@ -519,7 +559,7 @@ char *get_nxt_word(int tp) {
          * 1. Skip white space after the ;
          */
         ++fget;
-        while ((*fget == ' ' || *fget == '\t') && *fgets != 0) ++fget;
+        while ((*fget == ' ' || *fget == '\t') && *fget != 0) ++fget;
         if (fget[0] == '#' && fget[1] == '#')
             fprintf(listFile, " %d ;%s\n", fin->line, fget); /* NB: Note the space at the beginning of the line! */
       }
@@ -686,7 +726,7 @@ int put_float(char *f) {
     strcpy(tmp,"0");
   strcat(tmp,look);
 
-  /* Append decimal point in necessary */
+  /* Append decimal point if necessary */
   if (!strchr(tmp,'.'))
     strcat(tmp,".");
 
@@ -737,9 +777,9 @@ int put_float(char *f) {
 
     d=neg*128+64+d;
     d=d&0xff;
-    snprintf(buf,64,"%.2x",d);
-    strncat(buf,look,2);
-    strcat(buf," ");
+    snprintf(buf,64,"%.2x%c%c ", d, look[0], look[1]);
+    //strncat(buf,look,2);
+    //strcat(buf," ");
     look+=2;
     for(i=0;i<2;i++) {
       strncat(buf,look,4);
@@ -856,6 +896,9 @@ int add_label(char *label) {
     sym=get_sym();
     /* Set the original name of the symbol, nothing is processed yet */
     sym->orig = STRDUP(label);
+    sym->lineNr = fin->line;
+    sym->ftrack = fin->ftrack;
+
     if (label[0]=='?') {
       if (opt.MAElocals) {
         int len;
@@ -899,6 +942,8 @@ int add_label(char *label) {
         if (!findsym(label)) {
           symbol *nsym=get_sym();
           nsym->orig = STRDUP(label);
+          nsym->lineNr = fin->line;
+          nsym->ftrack = fin->ftrack;
           nsym->name=(char *)malloc(strlen(label)+1);
           if (!nsym->name) {
             error("Cannot allocate room for macro during macro instantiation.", 1);
@@ -1520,8 +1565,9 @@ int get_single(symbol *sym) {
 int incbin(char *fname) {
   FILE *in;
   int b,v;
+  char final_fname[256];
 
-  in=fopen_include(includes, fname, 1);
+  in=fopen_include(includes, fname, 1, final_fname);
   if (!in) {
     error("Cannot open binary file",1);
   }
@@ -1577,7 +1623,7 @@ int proc_sym(symbol *sym) {
   int i,stor;
   macro_call *mc;
   char buf[80];
-  int currentPC;        /* current PC*/
+  int currentPC = 0;        /* current PC*/
 
   switch (sym->tp) {
   case OPCODE:  /* opcode */
@@ -1598,11 +1644,11 @@ int proc_sym(symbol *sym) {
       get_single(sym);
     }
     if ((verbose)&&(pass)) {
-        if (lastSymbol && lastSymbol->addr == currentPC && lastSymbolLineNr != fin->line) {
-            /* Write the symbol name to the outline*/
-            sprintf(buf, " %s ", lastSymbol->orig);
-            strcat(outline, buf);
-        }
+      if (lastSymbol && ( (lastSymbol->addr & 0xFFFF) == currentPC) && lastSymbol->lineNr != fin->line) {
+        /* Write the original/unmodified symbol name to the outline */
+        sprintf(buf, " %s ", lastSymbol->orig);
+        strcat(outline, buf);
+      }
       while(strlen(outline)<16)
         strcat(outline," ");
       line=get_nxt_word(PARSE_CURRENT_LINE);
@@ -2030,13 +2076,10 @@ int do_cmd(char *buf) {
       if (!strchr(sym->name,'?'))
         opt.MAEname=sym->name;
     }
-    //if (sym && sym->tp == LABEL)
-    //    lastSymbol = sym;
   } else {
     proc_sym(sym);
     if (pass && sym && sym->tp == LABEL) {
         lastSymbol = sym;
-        lastSymbolLineNr = fin->line;
     }
     else
         lastSymbol = NULL;
@@ -2380,7 +2423,7 @@ int find_extension(char *name) {
  *=========================================================================*/
 int main(int argc, char *argv[]) {
   char outfile[256],fname[256],snap[256],xname[256],labelfile[256],listfile[256];
-  char cheaderfile[256], asmheaderfile[256];
+  char cheaderfile[256+2], asmheaderfile[256+4];
   int dsymbol,i,state;
 
   int create_c_header_fn, create_asm_header_fn;

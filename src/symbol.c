@@ -385,6 +385,10 @@ symbol *get_sym() {
   sym->nxt=sym->lnk=sym->mlnk=NULL;
   sym->orig=sym->name=sym->macroShadow=NULL;
   sym->ref=sym->tp=sym->addr=sym->bank=sym->num=0;
+
+  sym->lineNr = 0;
+  sym->ftrack = NULL;
+
   return sym;
 }
 /*=========================================================================*
@@ -454,10 +458,46 @@ symbol *alpha_merge(symbol *p, symbol *q) {
   return (l);
 }
 /*==========================================================================*
- * procedure sort
- *  This function sorts a linked list alphabetically
+ * procedure address_merge
+ * Part of the merge sort function, this does the actual merge...
+ * sorts list by address.
  *==========================================================================*/
-symbol *sort(symbol *head) {
+symbol* address_merge(symbol* p, symbol* q) 
+{
+    symbol* r, * l;
+
+    if (p->addr < q->addr) {
+        r = p;
+        p = p->lnk;
+    }
+    else {
+        r = q;
+        q = q->lnk;
+    }
+    l = r;
+    while ((p) && (q))
+        if (p->addr < q->addr) {
+            r->lnk = p;
+            r = p;
+            p = p->lnk;
+        }
+        else {
+            r->lnk = q;
+            r = q;
+            q = q->lnk;
+        }
+    if (!p)
+        r->lnk = q;
+    else
+        r->lnk = p;
+    return l;
+}
+/*==========================================================================*
+ * function sort
+ * This function sorts the symbol definition linked list alphabetically
+ * or by address
+ *==========================================================================*/
+symbol *sort(symbol *head, int byAddress) {
   symbol *p, *q, *stack[128];
   int i, c, merge, d;
 
@@ -474,8 +514,9 @@ symbol *sort(symbol *head) {
     q=p;
     p=p->lnk;
     q->lnk=NULL;
-    for (i=0; i<=merge-1; i++)
-      q=alpha_merge(q,stack[i]);
+    for (i = 0; i <= merge - 1; i++) {
+        q = byAddress ? address_merge(q, stack[i]) : alpha_merge(q, stack[i]);
+    }
     stack[merge]=q;
   }
   merge=-1;
@@ -485,7 +526,7 @@ symbol *sort(symbol *head) {
     merge++;
     if (d) {
       if (p) {
-        p=alpha_merge(p,stack[merge]);
+        p = byAddress ? address_merge(p, stack[merge]) : alpha_merge(p,stack[merge]);
       } else {
         p=stack[merge];
       }
@@ -504,7 +545,7 @@ int dump_symbols() {
   head=linkit();
   if (!head)
     return 0;
-  head=sym=sort(head);
+  head=sym=sort(head, 0);
   n=0;
   printf("\nEquates:\n");
   while(sym) {
@@ -558,7 +599,7 @@ int dump_labels(char *fname) {
     fclose(out);
     return 0;
   }
-  head=sym=sort(head);
+  head=sym=sort(head, 0);
 
   while(sym) {
     if (sym->name[0])
@@ -584,8 +625,11 @@ int dump_c_header(char* header_fname, char* asm_fname)
     symbol* sym, * head;
     char cheader_name[256];
     char base_name[256];
-    unsigned char* runner;
+    char* runner;
     FILE* out;
+
+    file_tracking* last_tracked_filename = NULL;
+    int maxLength;
 
     /* Generate the #if check name */
     for (runner = asm_fname + strlen(asm_fname); runner >= asm_fname; runner--) 
@@ -630,28 +674,47 @@ int dump_c_header(char* header_fname, char* asm_fname)
         fclose(out);
         return 0;
     }
-    head = sym = sort(head);
+    head = sym = sort(head, 1); /* sort by address */
 
+    /* Lets find the max length of the BASE_SYMBOL entry */
+    maxLength = 0;
+
+    while (sym)
+    {
+        if ( (sym->tp == EQUATE || sym->tp == LABEL) && sym->name[0] && sym->name[0] != '=')
+        {
+            int len = strlen(sym->name);
+            if (len > maxLength) maxLength = len;
+        }
+        sym = sym->lnk;
+    }
+
+    fprintf(out, "/* Constants */\n");
+    sym = head;
     while (sym)
     {
         if (sym->name[0])
         {
             if (sym->tp == EQUATE)
             {
-                fprintf(out, "#define %s_%s\t0x%.4X\n", base_name, sym->name, sym->addr & 0xffff);
+                fprintf(out, "#define %s_%-*s 0x%.4X /* %s @ %d */\n", base_name, maxLength, sym->name, sym->addr & 0xffff, sym->ftrack ? ((sym->ftrack == last_tracked_filename) ? "\"" : sym->ftrack->name) : "", sym->lineNr);
+                last_tracked_filename = sym->ftrack;
             }
         }
         sym = sym->lnk;
     }
 
+    fprintf(out, "\n/* Labels */\n");
     sym = head;
+    last_tracked_filename = NULL;
     while (sym) 
     {
         if (sym->name[0]) 
         {
             if ( (sym->tp == LABEL) && (sym->name[0] != '=')) 
             {
-                fprintf(out, "#define %s_%s\t0x%.4X\n", base_name, sym->name, sym->addr & 0xffff );
+                fprintf(out, "#define %s_%-*s 0x%.4X /* %s @ %d */\n", base_name, maxLength, sym->name, sym->addr & 0xffff, sym->ftrack ? ((sym->ftrack == last_tracked_filename) ? "\"" : sym->ftrack->name) : "", sym->lineNr);
+                last_tracked_filename = sym->ftrack;
             }
         }
         sym = sym->lnk;
@@ -672,6 +735,8 @@ int dump_assembler_header(char* header_fname)
 {
     symbol* sym, * head;
     FILE* out;
+    file_tracking* last_tracked_filename = NULL;
+    int maxLength;
 
     out = fopen(header_fname, "wb");
     if (!out)
@@ -682,31 +747,42 @@ int dump_assembler_header(char* header_fname)
         fclose(out);
         return 0;
     }
-    head = sym = sort(head);
+    head = sym = sort(head, 1);
 
-    fprintf(out, "\n; CONSTANTS\n");
+    /* Lets find the max length of the BASE_SYMBOL entry */
+    maxLength = 0;
+
     while (sym)
     {
-        if (sym->name[0])
+        if ((sym->tp == EQUATE || sym->tp == LABEL) && sym->name[0] && sym->name[0] != '=')
         {
-            if (sym->tp == EQUATE)
-            {
-                fprintf(out, "%s\t=\t$%.4X\n", sym->name, sym->addr & 0xffff);
-            }
+            int len = strlen(sym->name);
+            if (len > maxLength) maxLength = len;
+        }
+        sym = sym->lnk;
+    }
+
+    fprintf(out, "\n; CONSTANTS\n");
+    sym = head;
+    while (sym)
+    {
+        if (sym->tp == EQUATE && sym->name[0] && sym->name[0] != '=')
+        {
+            fprintf(out, "%-*s = $%.4X ; %s @ %d\n", maxLength, sym->name, sym->addr & 0xffff, sym->ftrack ? ((sym->ftrack == last_tracked_filename) ? "\"" : sym->ftrack->name) : "", sym->lineNr);
+            last_tracked_filename = sym->ftrack;
         }
         sym = sym->lnk;
     }
 
     fprintf(out, "\n; LABELS\n");
     sym = head;
+    last_tracked_filename = NULL;
     while (sym)
     {
-        if (sym->name[0])
+        if (sym->tp == LABEL && sym->name[0] && sym->name[0] != '=')
         {
-            if ((sym->tp == LABEL) && (sym->name[0] != '='))
-            {
-                fprintf(out, "%s\t=\t$%.4X\n", sym->name, sym->addr & 0xffff);
-            }
+            fprintf(out, "%-*s = $%.4X ; %s @ %d\n", maxLength, sym->name, sym->addr & 0xffff, sym->ftrack ? ((sym->ftrack == last_tracked_filename) ? "\"" : sym->ftrack->name) : "", sym->lineNr);
+            last_tracked_filename = sym->ftrack;
         }
         sym = sym->lnk;
     }

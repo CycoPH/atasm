@@ -127,6 +127,18 @@ int get_name(char *src, char *dst) {
   return l;
 }
 
+int get_dotname(char* src, char* dst) {
+    int l = 0;
+
+    while ((ISALNUM(*src)) || (*src == '_') || (*src == '?') || (*src == '@') || (*src=='.')) 
+    {
+        *dst++ = TOUPPER(*src++);
+        l++;
+    }
+    *dst = 0;
+    return l;
+}
+
 /*=========================================================================*
   function validate_symbol(char *str)
   parameters: str - the symbol to check
@@ -296,7 +308,15 @@ int get_signed_expression(char *str, int tp) {
       look++;
       *walk++=']';
     } else {
-      v=get_name(look,work);
+      /* Try and get a name including . so DATA.CMD would be valid
+       * If there is a symbol hit on that symbol the we assume that its NOT a .some command
+       */
+      v = get_dotname(look, work);
+      sym = findsym(work);
+      if (sym == NULL) {
+          /* symbol was not found so retry with the non . method */
+          v = get_name(look, work);
+      }
       look+=v;
       sym=validate_symbol(work);
       if ((!sym)&&(tp)) {

@@ -46,7 +46,7 @@
 str_list *init_include();
 
 void append_include(str_list *, char *);
-FILE *fopen_include(str_list *head, char *fname, int is_binary);
+FILE *fopen_include(str_list *head, char *fname, int is_binary, char *store_fname_here);
 
 void free_str_list(str_list *);
 
