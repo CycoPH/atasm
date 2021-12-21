@@ -44,7 +44,7 @@ char *parse_string;
  *=========================================================================*/
 int yylex()
 {
-  char terminals[]="[]<>-N/*+-&|^=#GLAOv";
+  char terminals[]="[]<>-N/*+-&|^=#GLAOvM";
   char *look,c;
 
   if (parse_string) {
@@ -255,8 +255,14 @@ int get_signed_expression(char *str, int tp) {
       snprintf(work,256,"%d",v);
       strcpy(walk,work);
       walk+=strlen(work);
+    } else if (*look == '%') {
+      if (!STRNCASECMP(look, "%%", 2)) {
+        look += 2; *walk++ = 'M';
+      }
     } else if (*look=='.') {
-      if (!STRNCASECMP(look,".NOT",4)) {
+      if (!STRNCASECMP(look, ".MOD", 4)) {
+          look += 4; *walk++ = 'M';
+      } else if (!STRNCASECMP(look,".NOT",4)) {
         look+=4; *walk++='N';
       } else if (!STRNCASECMP(look,".AND",4)) {
         look+=4; *walk++='A';

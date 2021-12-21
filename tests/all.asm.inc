@@ -1,6 +1,7 @@
 
 ; CONSTANTS
-ZPVARIABLES       = $0090 ; tests/all.asm @ 3
+BOB               = $0010 ; tests/all.asm @ 159
+ZPVARIABLES       = $0090 ; " @ 3
 BALLXPOSITION     = $0090 ; " @ 4
 BALLYPOSITION     = $0091 ; " @ 5
 BALLFRAMECOUNTER  = $0092 ; " @ 6
@@ -25,14 +26,15 @@ LABEL_14          = $2106 ; " @ 233
 LABEL_15          = $2118 ; " @ 250
 LABEL_16          = $212F ; " @ 267
 BOOT_THIS         = $3000 ; tests/all.asm @ 13
-SOME              = $3085 ; " @ 52
-STOREHERE         = $308A ; " @ 56
-ADDR1             = $30C6 ; " @ 105
-ADDR2             = $30C7 ; " @ 106
-ADDR3             = $30C8 ; " @ 107
-TABLE             = $30CD ; " @ 114
-SHAPES            = $324D ; " @ 118
-SHAPE1            = $325D ; " @ 124
-DATA.CMD          = $400B ; " @ 146
-DATA.LEN          = $400C ; " @ 147
-DATA.TMP          = $400D ; " @ 148
+SOME              = $3089 ; " @ 56
+STOREHERE         = $308E ; " @ 60
+ADDR1             = $30CA ; " @ 109
+ADDR2             = $30CB ; " @ 110
+ADDR3             = $30CC ; " @ 111
+TABLE             = $30D1 ; " @ 118
+SHAPES            = $3251 ; " @ 122
+SHAPE1            = $3261 ; " @ 128
+DATA.CMD          = $400B ; " @ 150
+DATA.LEN          = $400C ; " @ 151
+DATA.TMP          = $400D ; " @ 152
+MODULUS10TABLE    = $401A ; " @ 172

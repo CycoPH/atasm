@@ -125,3 +125,10 @@ Dec 2, 2021
                    cio.len .byte 0
                  are now valid labels.
                  Fixed some Linux compile warnings.
+Dec 21, 2021
+  version 1.15 - Added -hv switch to dump all equates, labels, macro defs and included source files to 
+                 the 'plugin.json' file located at the root folder from where atasm starts searching for
+                 source files.  This is to be used my the Atasm-Altirra-Bridge VSCode plugin to allow you to 
+                 quickly manouver your code.
+                 Added modulo/remainder operator. %% or .MOD
+                 You can now say '.byte 15%%10' and it will store the value of 5.

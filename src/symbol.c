@@ -725,7 +725,6 @@ int dump_c_header(char* header_fname, char* asm_fname)
     return 0;
 }
 
-
 /*=========================================================================*
  * function dump_assembler_header
  * prints out all equates and symbols entered into the symbol table in
@@ -792,6 +791,136 @@ int dump_assembler_header(char* header_fname)
 }
 
 /*=========================================================================*
+ * function dump_VSCode
+ * prints out info in VSCode plugin format
+ *=========================================================================*/
+char* bestNameForSymbol(symbol* sym)
+{
+    static char* ptrNone = "";
+    if (sym == NULL || sym->name == NULL || sym->name[0] == 0) return ptrNone;
+    if (sym->name[0] == '=')
+        return sym->orig;
+    return sym->name;
+}
+
+void dump_VSCode(file_tracking* trackedFiles)
+{
+    symbol* sym, * head;
+    FILE* out;
+    int count;
+
+    out = fopen("plugin.json", "wb");
+    if (!out)
+        return;
+
+    head = linkit();
+    if (!head) {
+        fprintf(out, "{}");
+        fclose(out);
+        return;
+    }
+    head = sym = sort(head, 1);
+
+    fprintf(out, "{\n");
+
+    fprintf(out, "\"constants\":[\n");
+    sym = head;
+    count = 0;
+    while (sym)
+    {
+        if (sym->tp == EQUATE)// && sym->name[0] && sym->name[0] != '=')
+        {
+            if (count != 0)
+                fprintf(out, ",\n");
+            fprintf(out, "{");
+            fprintf(out, "\"name\":\"%s\"", bestNameForSymbol(sym) );
+            fprintf(out, ",\"addr\":%d", sym->addr & 0xffff);
+            fprintf(out, ",\"file\":\"%s\"", sym->ftrack ? sym->ftrack->name : "-");
+            fprintf(out, ",\"ln\":%d", sym->lineNr);
+            fprintf(out, "}");
+            ++count;
+        }
+        sym = sym->lnk;
+    }
+    fprintf(out, "\n]\n");
+
+    fprintf(out, ",\"labels\":[\n");
+    sym = head;
+    count = 0;
+    while (sym)
+    {
+        if (sym->tp == LABEL) // && sym->name[0] && sym->name[0] != '=')
+        {
+            if (count != 0)
+                fprintf(out, ",\n");
+            fprintf(out, "{");
+            fprintf(out, "\"name\":\"%s\"", bestNameForSymbol(sym) );
+            fprintf(out, ",\"addr\":%d", sym->addr & 0xffff);
+            if (sym->lineNr > 0)
+            {
+                fprintf(out, ",\"file\":\"%s\"", sym->ftrack ? sym->ftrack->name : "-");
+                fprintf(out, ",\"ln\":%d", sym->lineNr);
+            }
+            else {
+                fprintf(out, ",\"cmdln\":\"%s\"", sym->orig);
+            }
+            fprintf(out, "}");
+            ++count;
+        }
+        sym = sym->lnk;
+    }
+    fprintf(out, "\n]\n");
+
+    /* MACROS */
+    fprintf(out, ",\"macros\":[\n");
+    sym = head;
+    count = 0;
+    while (sym)
+    {
+        if (sym->tp == MACRON) // && sym->name[0] && sym->name[0] != '=')
+        {
+            if (count != 0)
+                fprintf(out, ",\n");
+            fprintf(out, "{");
+            fprintf(out, "\"name\":\"%s\"", bestNameForSymbol(sym));
+            fprintf(out, ",\"addr\":%d", sym->addr & 0xffff);
+            if (sym->lineNr > 0)
+            {
+                fprintf(out, ",\"file\":\"%s\"", sym->ftrack ? sym->ftrack->name : "-");
+                fprintf(out, ",\"ln\":%d", sym->lineNr);
+            }
+            else {
+                fprintf(out, ",\"cmdln\":\"%s\"", sym->orig);
+            }
+            fprintf(out, "}");
+            ++count;
+        }
+        sym = sym->lnk;
+    }
+    fprintf(out, "\n]\n");
+
+    /* included files */
+    fprintf(out, ",\"includes\":[\n");
+    sym = head;
+    count = 0;
+    while (trackedFiles)
+    {
+        if (count != 0)
+            fprintf(out, ",\n");
+        fprintf(out, "{");
+        fprintf(out, "\"file\":\"%s\"", trackedFiles->name);
+        fprintf(out, "}");
+        ++count;
+        trackedFiles = trackedFiles->nxt;
+    }
+    fprintf(out, "\n]\n");
+
+
+    fprintf(out, "}\n");
+    fclose(out);
+}
+
+/*=========================================================================*
   function get_macro_call
   parameter: name- name of macro to find
 
@@ -846,8 +975,12 @@ int macro_subst(char *name, char *in, macro_line *args, int max) {
   */
   while(*look) {
     if (*look=='%') { /* time to substitute a paramter */
-      if ((*(look+1)=='$')||(ISDIGIT(*(look+1)))||
-          (*(look+1)=='(')||((*(look+1)=='$')&&(*(look+2)=='('))) {
+      if (*(look + 1) == '%') {
+        *walk++ = *look++;
+        *walk++ = *look++;
+      }
+      else if ((*(look+1)=='$')||(ISDIGIT(*(look+1)))||
+               (*(look+1)=='(')||((*(look+1)=='$')&&(*(look+2)=='('))) {
         look++;
         stype=ltype=0;
 
@@ -954,7 +1087,13 @@ int create_macro(symbol *sym) {
   m->nxt=NULL;
   m->lines=NULL;
   m->num=m->tp=0;
+
   entry=get_sym();
+  /* Set the original name of the symbol, nothing is processed yet */
+  entry->orig = STRDUP(str);
+  entry->lineNr = fin->line;
+  entry->ftrack = fin->ftrack;
+
   entry->tp=MACRON;
   entry->name=m->name=(char *)malloc(strlen(str)+1);
   strcpy(m->name,str);
@@ -1243,8 +1382,10 @@ void clean_up() {
   cleanUnk();
   sym=linkit();  /* Free symbol table entries... */
   while(sym) {
-    if ((sym->tp!=OPCODE)&&(sym->tp!=DIRECT))
+    if ((sym->tp!=OPCODE)&&(sym->tp!=DIRECT)) {
       free(sym->name);
+      free(sym->orig);
+    }
     kill=sym;
     sym=sym->lnk;
     free(kill);

@@ -114,12 +114,22 @@
  *              number where the equate or label was defined.
  *              Labels can now contain .
  *              i.e. DATA.CMD, DATA.LEN, DATA.AUX
+ * 
+ *              RELEASE 1.15
+ * 
+ * 21/12/21 ph  Added -hv switch to dump all equates, labels, macro defs and
+ *              included source files to the 'plugin.json' file located
+ *              at the root folder from where atasm starts searching for
+ *              source files.  This is to be used my the Atasm-Altirra-Bridge
+ *              VSCode plugin to allow you to quickly manouver your code
+ *              Added modulo/remainder operator. %% or .MOD
+ *              You can now say '.byte 15%%10' and it will store the value of 5.
  *==========================================================================*
  * TODO
  *   indepth testing of .IF,.ELSE,.ENDIF (signal error on mismatches?)
  *   ? add e .FLOAT notation (10e10)
  *   ? distinguish between Equates and Labels for symbol dump
- *   ? allow '.' within label names
+ *   ? allow '.' within label names (this should work now)
  *   .opt are not properly set at beginning of each pass
  *   i.e. .opt no list causes listing to be suppressed completely
  *
@@ -148,6 +158,12 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *==========================================================================*/
+/*
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <crtdbg.h>
+*/
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -162,6 +178,8 @@
 #include "symbol.h"
 #include "inc_path.h"
 #include "atasm_err.h"
+
+
 
 unsigned short pc;    /* program counter */
 int init_pc;          /* pc orig flag */
@@ -306,6 +324,7 @@ int init_asm() {
   }
   return 1;
 }
+
 /*=========================================================================*
  * function track_filename(char *fname)
  * parameters: fname is the file name to track
@@ -332,6 +351,18 @@ file_tracking* track_filename(char* fname)
     return tnew;
 }
 
+void cleanup_FilenameTracking()
+{
+    file_tracking* runner;
+    for (runner = trackedFiles; runner; )
+    {
+        file_tracking* old = runner;
+
+        if (runner->name) free(runner->name);
+        runner = runner->nxt;
+        free(old);
+    }
+}
 
 /*=========================================================================*
  * function open_file(char *fname)
@@ -1571,6 +1602,7 @@ int incbin(char *fname) {
   if (!in) {
     error("Cannot open binary file",1);
   }
+  track_filename(final_fname);
   v=verbose;
   verbose=0;
   while((in)&&(!feof(in))) {
@@ -2425,6 +2457,7 @@ int main(int argc, char *argv[]) {
   char outfile[256],fname[256],snap[256],xname[256],labelfile[256],listfile[256];
   char cheaderfile[256+2], asmheaderfile[256+4];
   int dsymbol,i,state;
+  int dumpVSCode;
 
   int create_c_header_fn, create_asm_header_fn;
 
@@ -2432,6 +2465,7 @@ int main(int argc, char *argv[]) {
 
   create_c_header_fn = create_asm_header_fn = 0;
   dsymbol=state=0;
+  dumpVSCode = 0;
   strcpy(snap,"atari800.a8s");
   fname[0]=outfile[0]=labelfile[0]=listfile[0]=cheaderfile[0]=asmheaderfile[0]='\0';
   opt.savetp=opt.verbose=opt.MAElocals=0;
@@ -2490,6 +2524,9 @@ int main(int argc, char *argv[]) {
             create_asm_header_fn = 1;
 		}
 	}
+    else if (!STRNCASECMP(argv[i], "-hv", 3)) {
+        dumpVSCode = 1;
+    }
     else if (!STRNCASECMP(argv[i],"-g",2)) {
       if (strlen(argv[i])>2) {
         strcpy(listfile, argv[i]+2);
@@ -2551,6 +2588,7 @@ int main(int argc, char *argv[]) {
       fputs("         -mae: treats local labels like MAE assembler\n",stderr);
       fputs("         -hc[fname]: dumps equates and labels to header file for CC65\n", stderr);
       fputs("         -ha[fname]: dumps equates and labels to header file for assembler\n", stderr);
+      fputs("         -hv: dumps all info for VSCode plugin\n", stderr);
       return 1;
     } else strcpy(fname,argv[i]);
   }
@@ -2579,6 +2617,9 @@ int main(int argc, char *argv[]) {
 
   if (asmheaderfile[0])
       dump_assembler_header(asmheaderfile);
+
+  if (dumpVSCode)
+      dump_VSCode(trackedFiles);
 
   fputs("\nAssembly successful\n",stderr);
   fprintf(stderr,"  Compiled %d bytes (~%dk)\n",bsize,bsize/1024);
@@ -2615,6 +2656,9 @@ int main(int argc, char *argv[]) {
   }
 
   clean_up();
+  cleanup_FilenameTracking();
+
+  /* _CrtDumpMemoryLeaks(); */
   return 0;
 }
 /*=========================================================================*/

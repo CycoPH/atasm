@@ -11,6 +11,10 @@ NextBallDirection	= zpVariables+4
 
 	* = $3000
 BOOT_THIS:
+	; Test LSB/MSB
+	lda #<BOOT_THIS
+	lda #>BOOT_THIS
+
 	; Hex constant
 	lda #>$601
 	.BYTE $02,$04,$08,$10
@@ -149,7 +153,26 @@ data.tmp	.byte 0
 
 	;##TRACE "this is an altirra test %d" @a
 	
+	; New modulus %% operator
+	; Alternative if for some reason %% does not assemble
+	; .MOD
+	BOB = 16
 
+	.byte 14%%10
+	.byte 128%%10
+	
+	r .= 0
+	.rept 5%%255
+	.byte [r*13].MODBOB
+	.byte [r*13]%%BOB
+	r .= r + 1
+	.endr
+	
+
+Modulus10Table .rept 10
+	.byte [*-Modulus10Table]%%10
+	.endr
+	
 
 	.bank
 	* = $2e0

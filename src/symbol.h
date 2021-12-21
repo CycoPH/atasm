@@ -22,7 +22,7 @@
 #define SYMBOL_H
 
 #define MAJOR_VER 1
-#define MINOR_VER 14
+#define MINOR_VER 15
 #define BETA_VER 0
 
 
@@ -160,6 +160,7 @@ int dump_symbols();
 int dump_labels(char *fname);
 int dump_c_header(char *header_fname, char *asm_fname);
 int dump_assembler_header(char* header_fname);
+void dump_VSCode(file_tracking* trackedFiles);
 macro_call *get_macro_call(char *name);
 int macro_subst(char *name, char *in, macro_line *cmd, int max);
 int create_macro(symbol *sym);

@@ -2,7 +2,8 @@
 #define _ALL_ASM_
 
 /* Constants */
-#define ALL_ZPVARIABLES       0x0090 /* tests/all.asm @ 3 */
+#define ALL_BOB               0x0010 /* tests/all.asm @ 159 */
+#define ALL_ZPVARIABLES       0x0090 /* " @ 3 */
 #define ALL_BALLXPOSITION     0x0090 /* " @ 4 */
 #define ALL_BALLYPOSITION     0x0091 /* " @ 5 */
 #define ALL_BALLFRAMECOUNTER  0x0092 /* " @ 6 */
@@ -27,16 +28,17 @@
 #define ALL_LABEL_15          0x2118 /* " @ 250 */
 #define ALL_LABEL_16          0x212F /* " @ 267 */
 #define ALL_BOOT_THIS         0x3000 /* tests/all.asm @ 13 */
-#define ALL_SOME              0x3085 /* " @ 52 */
-#define ALL_STOREHERE         0x308A /* " @ 56 */
-#define ALL_ADDR1             0x30C6 /* " @ 105 */
-#define ALL_ADDR2             0x30C7 /* " @ 106 */
-#define ALL_ADDR3             0x30C8 /* " @ 107 */
-#define ALL_TABLE             0x30CD /* " @ 114 */
-#define ALL_SHAPES            0x324D /* " @ 118 */
-#define ALL_SHAPE1            0x325D /* " @ 124 */
-#define ALL_DATA.CMD          0x400B /* " @ 146 */
-#define ALL_DATA.LEN          0x400C /* " @ 147 */
-#define ALL_DATA.TMP          0x400D /* " @ 148 */
+#define ALL_SOME              0x3089 /* " @ 56 */
+#define ALL_STOREHERE         0x308E /* " @ 60 */
+#define ALL_ADDR1             0x30CA /* " @ 109 */
+#define ALL_ADDR2             0x30CB /* " @ 110 */
+#define ALL_ADDR3             0x30CC /* " @ 111 */
+#define ALL_TABLE             0x30D1 /* " @ 118 */
+#define ALL_SHAPES            0x3251 /* " @ 122 */
+#define ALL_SHAPE1            0x3261 /* " @ 128 */
+#define ALL_DATA.CMD          0x400B /* " @ 150 */
+#define ALL_DATA.LEN          0x400C /* " @ 151 */
+#define ALL_DATA.TMP          0x400D /* " @ 152 */
+#define ALL_MODULUS10TABLE    0x401A /* " @ 172 */
 
 #endif
