@@ -22,7 +22,7 @@
 #define SYMBOL_H
 
 #define MAJOR_VER 1
-#define MINOR_VER 15
+#define MINOR_VER 16
 #define BETA_VER 0
 
 
@@ -93,6 +93,7 @@ typedef struct file_stack { /* File process entry */
   char *name;
   FILE *in;
   int line;
+  char** trackClear;
   struct file_stack *nxt;
   struct file_tracking *ftrack;
 } file_stack;

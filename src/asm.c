@@ -392,6 +392,7 @@ int open_file(char *fname) {
     snprintf(buf,256,"Cannot open file '%s'\n",fname);
     error(buf,1);
   }
+  fnew->trackClear = NULL;          /* Location in aprintf to clear when the file_stack object is deleted */
   fnew->line=0;
   fnew->nxt=fin;
   fnew->ftrack = track_filename(final_fname);
@@ -405,40 +406,47 @@ int open_file(char *fname) {
  *
  * This function outputs the information to stdout (verbose bit 1 set)
  * and to the list file (verbose bit 2 set)
+ * PH: 22-12-2021 - Fixed a problem with the tracking of the filename.
+ * The static lfin would point to fin->name, but that entry could have been
+ * freed when another source file was included.  Added a 'trackClear' field.
+ * Now when the fin structure is removed at the end of a file it clears lfin
+ * as well.
  *=========================================================================*/
-void aprintf(char *msg, ...) {
-  char buf[512], line[512];     /* Increased the size of the buffers.  Each line can be 256 bytes but in this case the output can be over the line length */
-  static char *lfin=0;
+void aprintf(char* msg, ...) {
+	char buf[512], line[512];     /* Increased the size of the buffers.  Each line can be 256 bytes but in this case the output can be over the line length */
+	static char* lfin = NULL;
 
-  va_list args;
+	va_list args;
 
-  buf[0]=line[0]=0;
-  va_start(args,msg);
-  vsprintf(buf,msg,args);
-  strcat(line,buf);
-  va_end(args);
+	buf[0] = line[0] = 0;
+	va_start(args, msg);
+	vsprintf(buf, msg, args);
+	strcat(line, buf);
+	va_end(args);
 
-  /* normal verbose output */
-  if (verbose&1) {
-    fputs(line,stdout);
-  }
+	/* normal verbose output */
+	if (verbose & 1) {
+		fputs(line, stdout);
+	}
 
-  /* list file output */
-  if ((verbose&2)&&(listFile)) {
-    strcpy(buf,line);
-    squeeze_str(buf);
-    if (buf[0]) {
-      if ((!lfin)||(lfin!=fin->name)) {
-        lfin=fin->name;
-        fprintf(listFile,"\nSource: %s\n",fin->name);
-      }
-      /* convert address from LE to BE display */
-      strncpy(buf,line+3,2);
-      strncpy(buf+2,line,2);
-      buf[4]=0;
-      fprintf(listFile,"%d %s%s",fin->line,buf,line+5);
-    }
-  }
+	/* list file output */
+	if ((verbose & 2) && (listFile)) {
+		strcpy(buf, line);
+		squeeze_str(buf);
+
+		if (buf[0]) {
+			if (lfin == NULL || (lfin != fin->name)) {
+				lfin = fin->name;
+                fin->trackClear = &lfin;                            /* this ptrs to lfin to clear when the fin structure is freed */
+				fprintf(listFile, "\nSource: %s\n", fin->name);
+			}
+			/* convert address from LE to BE display */
+			strncpy(buf, line + 3, 2);
+			strncpy(buf + 2, line, 2);
+			buf[4] = 0;
+			fprintf(listFile, "%d %s%s", fin->line, buf, line + 5);
+		}
+	}
 }
 
 /*=========================================================================*
@@ -573,6 +581,7 @@ char *get_nxt_word(int tp) {
         fin=fin->nxt;
         fclose(kill->in);
         free(kill->name);
+        if (kill->trackClear) *kill->trackClear = NULL;
         free(kill);
         fget=NULL;
         if (!fin)

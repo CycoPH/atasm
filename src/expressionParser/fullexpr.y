@@ -23,10 +23,13 @@ int rval;
 
 /        division
 *        multiplication
-.MOD(M)  modulus
+%% .MOD(M)  modulus
 
 +        addition
 -        subtraction
+
+<<(Q)	shift left
+>>(W)	shift rught
 
 &        binary AND
 |        binary OR
@@ -49,6 +52,7 @@ int rval;
 %left   'A'
 %left   '=' '#' '<' '>' 'G' 'L'
 %left   '&' '|' '^'
+%left   'Q' 'W'
 %left   '+' '-'
 %left   '*' '/' 'M'
 %right  'N'
@@ -69,6 +73,8 @@ expression      : 'v'                       {$$=nums[vnum++]; }
                 | expression '|' expression {$$=$1|$3; }
                 | expression '&' expression {$$=$1&$3; }
                 | expression '^' expression {$$=$1^$3; }
+				| expression 'Q' expression {$$=$1<<$3; }
+				| expression 'W' expression {$$=$1>>$3; }
                 | expression '+' expression {$$=$1+$3; }
                 | expression '-' expression {$$=$1-$3; }
 				| expression 'M' expression {$$=$1%$3; }

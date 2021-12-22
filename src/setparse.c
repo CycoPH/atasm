@@ -44,7 +44,7 @@ char *parse_string;
  *=========================================================================*/
 int yylex()
 {
-  char terminals[]="[]<>-N/*+-&|^=#GLAOvM";
+  char terminals[]="[]<>-N/*+-&|^=#GLAOvMQW";
   char *look,c;
 
   if (parse_string) {
@@ -91,6 +91,10 @@ int parse_expr(char *a) {
       sscanf(walk,"%d",&v);
       nums[num]=v;
       num++;
+    } else if ((*look=='<')&&(*(look+1)=='<')) {
+      look+=2; *walk++='Q';
+    } else if ((*look == '>') && (*(look + 1) == '>')) {
+      look += 2; *walk++ = 'W';
     } else if ((*look=='<')&&(*(look+1)=='>')) {
       look+=2; *walk++='#';
     } else if ((*look=='<')&&(*(look+1)=='=')) {
