@@ -803,13 +803,17 @@ char* bestNameForSymbol(symbol* sym)
     return sym->name;
 }
 
-void dump_VSCode(file_tracking* trackedFiles)
+/*
+* trackedFiles: linked list of files that have been included
+* parts: which data is to be dumped (CONSTANTS, LABEL, MACROS)
+*/
+void dump_VSCode(file_tracking* trackedFiles, int parts)
 {
     symbol* sym, * head;
     FILE* out;
     int count;
 
-    out = fopen("plugin.json", "wb");
+    out = fopen("asm-symbols.json", "wb");
     if (!out)
         return;
 
@@ -823,83 +827,91 @@ void dump_VSCode(file_tracking* trackedFiles)
 
     fprintf(out, "{\n");
 
+    // Constants
     fprintf(out, "\"constants\":[\n");
-    sym = head;
-    count = 0;
-    while (sym)
+    if (parts & DUMP_CONSTANTS)
     {
-        if (sym->tp == EQUATE)// && sym->name[0] && sym->name[0] != '=')
+        sym = head;
+        count = 0;
+        while (sym)
         {
-            if (count != 0)
-                fprintf(out, ",\n");
-            fprintf(out, "{");
-            fprintf(out, "\"name\":\"%s\"", bestNameForSymbol(sym) );
-            fprintf(out, ",\"addr\":%d", sym->addr & 0xffff);
-            fprintf(out, ",\"file\":\"%s\"", sym->ftrack ? sym->ftrack->name : "-");
-            fprintf(out, ",\"ln\":%d", sym->lineNr);
-            fprintf(out, "}");
-            ++count;
+            if (sym->tp == EQUATE)// && sym->name[0] && sym->name[0] != '=')
+            {
+                if (count != 0)
+                    fprintf(out, ",\n");
+                fprintf(out, "{");
+                fprintf(out, "\"name\":\"%s\"", bestNameForSymbol(sym));
+                fprintf(out, ",\"addr\":%d", sym->addr & 0xffff);
+                fprintf(out, ",\"file\":\"%s\"", sym->ftrack ? sym->ftrack->name : "-");
+                fprintf(out, ",\"ln\":%d", sym->lineNr);
+                fprintf(out, "}");
+                ++count;
+            }
+            sym = sym->lnk;
         }
-        sym = sym->lnk;
     }
     fprintf(out, "\n]\n");
 
+    // Labels
     fprintf(out, ",\"labels\":[\n");
-    sym = head;
-    count = 0;
-    while (sym)
+    if (parts & DUMP_LABELS)
     {
-        if (sym->tp == LABEL) // && sym->name[0] && sym->name[0] != '=')
+        sym = head;
+        count = 0;
+        while (sym)
         {
-            if (count != 0)
-                fprintf(out, ",\n");
-            fprintf(out, "{");
-            fprintf(out, "\"name\":\"%s\"", bestNameForSymbol(sym) );
-            fprintf(out, ",\"addr\":%d", sym->addr & 0xffff);
-            if (sym->lineNr > 0)
+            if (sym->tp == LABEL) // && sym->name[0] && sym->name[0] != '=')
             {
-                fprintf(out, ",\"file\":\"%s\"", sym->ftrack ? sym->ftrack->name : "-");
-                fprintf(out, ",\"ln\":%d", sym->lineNr);
+                if (count != 0)
+                    fprintf(out, ",\n");
+                fprintf(out, "{");
+                fprintf(out, "\"name\":\"%s\"", bestNameForSymbol(sym));
+                fprintf(out, ",\"addr\":%d", sym->addr & 0xffff);
+                if (sym->lineNr > 0)
+                {
+                    fprintf(out, ",\"file\":\"%s\"", sym->ftrack ? sym->ftrack->name : "-");
+                    fprintf(out, ",\"ln\":%d", sym->lineNr);
+                }
+                else {
+                    fprintf(out, ",\"cmdln\":\"%s\"", sym->orig);
+                }
+                fprintf(out, "}");
+                ++count;
             }
-            else {
-                fprintf(out, ",\"cmdln\":\"%s\"", sym->orig);
-            }
-            fprintf(out, "}");
-            ++count;
+            sym = sym->lnk;
         }
-        sym = sym->lnk;
     }
     fprintf(out, "\n]\n");
 
     /* MACROS */
     fprintf(out, ",\"macros\":[\n");
-    sym = head;
-    count = 0;
-    while (sym)
+    if (parts & DUMP_MACROS)
     {
-        if (sym->tp == MACRON) // && sym->name[0] && sym->name[0] != '=')
+        sym = head;
+        count = 0;
+        while (sym)
         {
-            if (count != 0)
-                fprintf(out, ",\n");
-            fprintf(out, "{");
-            fprintf(out, "\"name\":\"%s\"", bestNameForSymbol(sym));
-            fprintf(out, ",\"addr\":%d", sym->addr & 0xffff);
-            if (sym->lineNr > 0)
+            if (sym->tp == MACRON) // && sym->name[0] && sym->name[0] != '=')
             {
-                fprintf(out, ",\"file\":\"%s\"", sym->ftrack ? sym->ftrack->name : "-");
-                fprintf(out, ",\"ln\":%d", sym->lineNr);
+                if (count != 0)
+                    fprintf(out, ",\n");
+                fprintf(out, "{");
+                fprintf(out, "\"name\":\"%s\"", bestNameForSymbol(sym));
+                // fprintf(out, ",\"addr\":%d", sym->addr & 0xffff);
+                if (sym->lineNr > 0)
+                {
+                    fprintf(out, ",\"file\":\"%s\"", sym->ftrack ? sym->ftrack->name : "-");
+                    fprintf(out, ",\"ln\":%d", sym->lineNr);
+                }
+                fprintf(out, "}");
+                ++count;
             }
-            else {
-                fprintf(out, ",\"cmdln\":\"%s\"", sym->orig);
-            }
-            fprintf(out, "}");
-            ++count;
+            sym = sym->lnk;
         }
-        sym = sym->lnk;
     }
     fprintf(out, "\n]\n");
 
-    /* included files */
+    /* Included files */
     fprintf(out, ",\"includes\":[\n");
     sym = head;
     count = 0;

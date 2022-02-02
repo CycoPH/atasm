@@ -22,11 +22,19 @@
 #define SYMBOL_H
 
 #define MAJOR_VER 1
-#define MINOR_VER 16
+#define MINOR_VER 17
 #define BETA_VER 0
 
-
  /*==========================================================================*/
+
+#define DUMP_NOTHING    0
+#define DUMP_CONSTANTS  1
+#define DUMP_LABELS     2
+#define DUMP_MACROS     4
+#define DUMP_ALL        (1|2|4)
+
+
+/*==========================================================================*/
 typedef struct file_tracking /* Track the filename */
 {
     char* name;
@@ -161,7 +169,7 @@ int dump_symbols();
 int dump_labels(char *fname);
 int dump_c_header(char *header_fname, char *asm_fname);
 int dump_assembler_header(char* header_fname);
-void dump_VSCode(file_tracking* trackedFiles);
+void dump_VSCode(file_tracking* trackedFiles, int partsToDump);
 macro_call *get_macro_call(char *name);
 int macro_subst(char *name, char *in, macro_line *cmd, int max);
 int create_macro(symbol *sym);

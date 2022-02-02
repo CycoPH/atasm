@@ -2457,6 +2457,31 @@ int find_extension(char *name) {
   }
   return end-name;
 }
+
+/*=========================================================================*
+ * Show command line help
+ *=========================================================================*/
+void showHelp(char *executable)
+{
+    fprintf(stderr, "\nUsage: %s [-v] [-s] [-r] [-d[symbol=value] [-o[fname.out] [-m[fname.state]] <fname.m65>\n", executable ? executable : "atasm");
+    fputs("  where  -v: prints assembly trace\n", stderr);
+    fputs("         -s: prints symbol table\n", stderr);
+    fputs("         -u: enables undocumented opcodes\n", stderr);
+    fputs("         -m[fname]: defines template emulator state file\n", stderr);
+    fputs("         -x[fname]: saves object file to .XFD/.ATR disk image [fname]\n", stderr);
+    fputs("         -r: saves object code as a raw binary image\n", stderr);
+    fputs("         -f[value]: set raw binary fill byte to [value]\n", stderr);
+    fputs("         -o[fname]: saves object file to [fname] instead of <fname>.65o\n", stderr);
+    fputs("         -d[symbol=value]: pre-defines [symbol] to [value]\n", stderr);
+    fputs("         -l[fname]: dumps labels to file [fname]\n", stderr);
+    fputs("         -g[fname]: dumps debug list to file [fname]\n", stderr);
+    fputs("         -Idirectory: search [directory] for .INCLUDE files\n", stderr);
+    fputs("         -mae: treats local labels like MAE assembler\n", stderr);
+    fputs("         -hc[fname]: dumps equates and labels to header file for CC65\n", stderr);
+    fputs("         -ha[fname]: dumps equates and labels to header file for assembler\n", stderr);
+    fputs("         -hv[clm]: dumps all info for VSCode plugin. c=constants, l=labels, m=macros\n", stderr);
+}
+
 /*=========================================================================*
  * function main
  *
@@ -2474,7 +2499,7 @@ int main(int argc, char *argv[]) {
 
   create_c_header_fn = create_asm_header_fn = 0;
   dsymbol=state=0;
-  dumpVSCode = 0;
+  dumpVSCode = DUMP_NOTHING;   /* No dumping of constant, label, macros, and includes to 'asm-symbols.json' file */
   strcpy(snap,"atari800.a8s");
   fname[0]=outfile[0]=labelfile[0]=listfile[0]=cheaderfile[0]=asmheaderfile[0]='\0';
   opt.savetp=opt.verbose=opt.MAElocals=0;
@@ -2534,7 +2559,23 @@ int main(int argc, char *argv[]) {
 		}
 	}
     else if (!STRNCASECMP(argv[i], "-hv", 3)) {
-        dumpVSCode = 1;
+        if (strlen(argv[i]) > 3) {
+            /* There are special selectors after the -hv switch */
+            /* c = constants, l = labels, m = macros */
+            char* param = argv[i];
+            for (int x = 3; x < strlen(param); ++x) {
+                if (!STRNCASECMP(&param[x], "c", 1)) { dumpVSCode |= DUMP_CONSTANTS; }
+                else if (!STRNCASECMP(&param[x], "l", 1)) { dumpVSCode |= DUMP_LABELS; }
+                else if (!STRNCASECMP(&param[x], "m", 1)) { dumpVSCode |= DUMP_MACROS; }
+            }
+            // Hmm, did not select anything useful, so dump it all
+            if (dumpVSCode == DUMP_NOTHING)
+                dumpVSCode = DUMP_ALL;
+        }
+        else {
+            /* Dump all the items */
+            dumpVSCode = DUMP_ALL; /* constants, labels, macros, (includes are always dumped) */
+        }
     }
     else if (!STRNCASECMP(argv[i],"-g",2)) {
       if (strlen(argv[i])>2) {
@@ -2581,29 +2622,15 @@ int main(int argc, char *argv[]) {
         fprintf(stderr,"Using default state file: '%s'\n",snap);
       state=1;
     } else if (!STRCASECMP(argv[i],"-h")) {
-      fprintf(stderr,"\nUsage: %s [-v] [-s] [-r] [-d[symbol=value] [-o[fname.out] [-m[fname.state]] <fname.m65>\n",argv[0]);
-      fputs("  where  -v: prints assembly trace\n",stderr);
-      fputs("         -s: prints symbol table\n",stderr);
-      fputs("         -u: enables undocumented opcodes\n",stderr);
-      fputs("         -m[fname]: defines template emulator state file\n",stderr);
-      fputs("         -x[fname]: saves object file to .XFD/.ATR disk image [fname]\n",stderr);
-      fputs("         -r: saves object code as a raw binary image\n",stderr);
-      fputs("         -f[value]: set raw binary fill byte to [value]\n",stderr);
-      fputs("         -o[fname]: saves object file to [fname] instead of <fname>.65o\n",stderr);
-      fputs("         -d[symbol=value]: pre-defines [symbol] to [value]\n",stderr);
-      fputs("         -l[fname]: dumps labels to file [fname]\n",stderr);
-      fputs("         -g[fname]: dumps debug list to file [fname]\n",stderr);
-      fputs("         -Idirectory: search [directory] for .INCLUDE files\n",stderr);
-      fputs("         -mae: treats local labels like MAE assembler\n",stderr);
-      fputs("         -hc[fname]: dumps equates and labels to header file for CC65\n", stderr);
-      fputs("         -ha[fname]: dumps equates and labels to header file for assembler\n", stderr);
-      fputs("         -hv: dumps all info for VSCode plugin\n", stderr);
+      showHelp(argv[0]);
       return 1;
     } else strcpy(fname,argv[i]);
   }
 
   if (!strlen(fname)) {
-    strcpy(fname,"test.m65");
+    // strcpy(fname,"test.m65");
+    showHelp(argv[0]);
+    return 1;
   }
 
   /* If the -hc or -ha options did not specify a filename lets create them now */
@@ -2628,7 +2655,7 @@ int main(int argc, char *argv[]) {
       dump_assembler_header(asmheaderfile);
 
   if (dumpVSCode)
-      dump_VSCode(trackedFiles);
+      dump_VSCode(trackedFiles, dumpVSCode);
 
   fputs("\nAssembly successful\n",stderr);
   fprintf(stderr,"  Compiled %d bytes (~%dk)\n",bsize,bsize/1024);

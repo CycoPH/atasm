@@ -139,4 +139,10 @@ Dec 22, 2021
                  Code like this now assembles:
                  lda #1<<4
                  Fixed a bug in .LST output generator.  Filenames were not tracked correctly which caused source lines
-                 to be allocated to the wrong source file.  Thank you to Lars Langhans for reporting this. 
+                 to be allocated to the wrong source file.  Thank you to Lars Langhans for reporting this.
+Feb 2, 2022
+  version 1.17 - Extended the -hv[clm] option. You can now limit the data export to (c)onstants, (l)abels and (m)acros.
+				 Or any combination of them. -hvcl exports constants and labels. By default all data is exported.
+				 Used by the "Atasm-Altirra-Bridge" VSCode plugin (https://bit.ly/3ATTHVR)
+				 Breaking default behavior change: When running atasm without a target assembler file (was test.m65)
+				 the command line help is shown. Same when specifying -h on the command line.
