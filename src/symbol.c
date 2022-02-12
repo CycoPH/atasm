@@ -388,6 +388,7 @@ symbol *get_sym() {
 
   sym->lineNr = 0;
   sym->ftrack = NULL;
+  sym->comment = NULL;
 
   return sym;
 }
@@ -844,6 +845,9 @@ void dump_VSCode(file_tracking* trackedFiles, int parts)
                 fprintf(out, ",\"addr\":%d", sym->addr & 0xffff);
                 fprintf(out, ",\"file\":\"%s\"", sym->ftrack ? sym->ftrack->name : "-");
                 fprintf(out, ",\"ln\":%d", sym->lineNr);
+                if (sym->comment) {
+                    fprintf(out, ",\"com\":\"%s\"", sym->comment);
+                }
                 fprintf(out, "}");
                 ++count;
             }
@@ -874,6 +878,9 @@ void dump_VSCode(file_tracking* trackedFiles, int parts)
                 }
                 else {
                     fprintf(out, ",\"cmdln\":\"%s\"", sym->orig);
+                }
+                if (sym->comment) {
+                    fprintf(out, ",\"com\":\"%s\"", sym->comment);
                 }
                 fprintf(out, "}");
                 ++count;

@@ -22,7 +22,7 @@
 #define SYMBOL_H
 
 #define MAJOR_VER 1
-#define MINOR_VER 17
+#define MINOR_VER 18
 #define BETA_VER 0
 
  /*==========================================================================*/
@@ -73,6 +73,8 @@ typedef struct symbol {  /* Symbol table entry */
   /* Track the source of the symbol */
   int lineNr;
   struct file_tracking* ftrack;
+  /* comment from source file*/
+  char* comment;
 } symbol;
 
 /*==========================================================================*/

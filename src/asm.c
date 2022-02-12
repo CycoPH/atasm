@@ -198,6 +198,7 @@ int bankID;
 char *outline;  /* the line of text written out in verbose mode */
 
 symbol* lastSymbol = NULL;
+symbol* lastLabel = NULL;           // Which is the last label that was defined
 file_tracking* trackedFiles;
 
 FILE *listFile;
@@ -452,14 +453,15 @@ void aprintf(char* msg, ...) {
 /*=========================================================================*
  * function get_nxt_word(int tp)
  * parameters: tp denotes the processing mode where(?)
- *   0: normal processing, getting next line
- *   1: get rest of current line
- *   2: return entire current line
- *   3: get rest of current line, but don't advance buffer (peeking ahead)
- *   4: get next word, returning "" when eol is hit (no advance to next line)
- *   5: 'skip' mode, don't subst macro params!
- *   6: replace commas with spaces in reading buffer and return NULL
- *
+ *   0/PARSE_NEXT_LINE: normal processing, getting next line
+ *   1/PARSE_LINE_REST: get rest of current line
+ *   2/PARSE_CURRENT_LINE: return entire current line
+ *   3/PARSE_PEEK_LINE_REST: get rest of current line, but don't advance buffer (peeking ahead)
+ *   4/PARSE_NEXT_WORD: get next word, returning "" when eol is hit (no advance to next line)
+ *   5/PARSE_SKIP: 'skip' mode, don't subst macro params!
+ *   6/PARSE_REPLACE_COMMAS: replace commas with spaces in reading buffer and return NULL
+ *   7/PEEK_COMMENT: look for a comment starting ; and return everything after it
+ * 
  * This function return a pointer to the next 'interesting' word,
  * skipping white space, comments and empty lines
  * Strings are returned verbatim (including spaces)
@@ -472,6 +474,31 @@ char *get_nxt_word(int tp) {
   macro_call *mkill;
   macro_line *lkill;
 
+    if (tp == PEEK_COMMENT) {
+        if (!fget)
+            return NULL;
+        strcpy(buf, fget);
+        instr = 0;
+        len = strlen(buf);
+        for (i = 0; i < len; i++) {
+            if (buf[i] == '"')    /* fix embedded ';' problem - mws 11/10/99 */
+                instr ^= 1;
+            else if ((buf[i] == ';') && (!instr)) {
+                if ((i) && (buf[i - 1] == '\''))  /* allow quoted semicolons */
+                    continue;
+                {
+                    char* runner = &buf[i];
+                    ++runner;
+                    while ((*runner == ' ' || *runner == '\t') && *runner != 0) ++runner;
+                    if (strlen(runner) > 0)
+                        return runner;
+                    return NULL;
+                }
+                break;
+            }
+        }
+        return NULL;
+    }
   if (tp==PARSE_REPLACE_COMMAS) {
     look=fget;
     instr=0;
@@ -593,16 +620,24 @@ char *get_nxt_word(int tp) {
     }
     if (((fget)&&(!(*fget)))||(*fget==';')) {
       /* check for full comment line */
-      if (*fget == ';' && (pass) && (verbose&2)) {
-        /* We have a full line comment on the 2nd pass
-         * Check if its a ; ## TRACE or ; ## ASSERT for Altirra debugging
-         * 1. Skip white space after the ;
-         */
-        ++fget;
-        while ((*fget == ' ' || *fget == '\t') && *fget != 0) ++fget;
-        if (fget[0] == '#' && fget[1] == '#')
-            fprintf(listFile, " %d ;%s\n", fin->line, fget); /* NB: Note the space at the beginning of the line! */
-      }
+        if (*fget == ';' && pass) {
+            /* We have a comment on the 2nd pass
+             * 1. Skip white space after the ;
+             * Check if its a ; ## TRACE or ; ## ASSERT for Altirra debugging
+             */
+            ++fget;
+            while ((*fget == ' ' || *fget == '\t') && *fget != 0) ++fget;
+            if (verbose & 2 && fget[0] == '#' && fget[1] == '#') {
+              fprintf(listFile, " %d ;%s\n", fin->line, fget); /* NB: Note the space at the beginning of the line! */
+            }
+            // If the current line and file are the same as that of the last label
+            // then append the comment to the label
+            if (lastLabel && lastLabel->ftrack == fin->ftrack && lastLabel->lineNr == fin->line)
+            {
+                // Add the comment to the label
+                lastLabel->comment = STRDUP(fget);
+            }
+        }
       fget=NULL;
     }
   } while ((!fget)||(!(*fget)));
@@ -1666,6 +1701,17 @@ int proc_sym(symbol *sym) {
   char buf[80];
   int currentPC = 0;        /* current PC*/
 
+  if (pass == 1 && lastLabel && lastLabel->ftrack == fin->ftrack && lastLabel->lineNr == fin->line) {
+      // On the 2nd pass look if there is a comment after the equate
+      str = get_nxt_word(PEEK_COMMENT);
+      if (str)
+      {
+          // Add the comment to the label
+          lastLabel->comment = STRDUP(str);
+      }
+      str = NULL;
+  }
+
   switch (sym->tp) {
   case OPCODE:  /* opcode */
     if (!init_pc)
@@ -1933,9 +1979,11 @@ int proc_sym(symbol *sym) {
       }
       if (pass) {
         if (bankID>=0) {
-          char buf[256];
-          sprintf(buf,"Using bank %d,%d\n",bankID,symbolID);
-          error(buf,0);
+          if (verbose & 1) {
+            char buf[256];
+            sprintf(buf,"Using bank %d,%d\n",bankID,symbolID);
+            error(buf,0);
+          }
           activeBank=get_bank(bankID,symbolID);
         }
       } else if (bankID>=0) {
@@ -2036,11 +2084,13 @@ int proc_sym(symbol *sym) {
         }
       }
     } else {
+      // 2nd pass
       if ((sym->tp==LABEL)&&(sym->name)&&(sym->name[0]!='?'))
         if (!strchr(sym->name,'?'))
           opt.MAEname=sym->name;
     }
     if (eq==1) {
+      // Equate (=)
       if (sym->tp==LABEL) {
         snprintf(buf,80,"Cannot use label '%s' as an equate",sym->name);
         error(buf,1);
@@ -2108,12 +2158,18 @@ int do_cmd(char *buf) {
     buf[i]=TOUPPER(buf[i]);
 
   sym=findsym(buf);
-  
+
+  if (sym && (sym->tp == LABEL || sym->tp == EQUATE) && sym->name) {
+      lastLabel = sym;
+  }
+ 
   if ((!sym)||((sym->tp==MACROL)&&(!sym->macroShadow))) {
     /* must be a label or define */
     add_label(buf);
     sym=findsym(buf);
-    if ((sym)&&(sym->tp==LABEL)&&(sym->name)&&(sym->name[0]!='?')) {
+    lastLabel = sym;
+    if (sym && sym->tp == LABEL && sym->name && sym->name[0] != '?') 
+    {
       if (!strchr(sym->name,'?'))
         opt.MAEname=sym->name;
     }

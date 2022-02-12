@@ -36,6 +36,7 @@
 #define PARSE_NEXT_WORD 4		/* get next word, returning "" when eol is hit (no advance to next line) */
 #define PARSE_SKIP 5			/* 'skip' mode, don't subst macro params! */
 #define PARSE_REPLACE_COMMAS 6	/* replace commas with spaces in reading buffer and return NULL */
+#define PEEK_COMMENT 7			/* return the comment at the end of the line */
 
 #endif
 
