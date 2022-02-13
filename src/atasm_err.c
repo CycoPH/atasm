@@ -113,7 +113,7 @@ int error(char *err, int tp) {
     unsigned int crc;
 
     snprintf(buf,256,"%s%d%s",fin->name,fin->line,err);
-    crc=err_crc32((unsigned char *)buf,strlen(buf));
+    crc=err_crc32((unsigned char *)buf,(int)strlen(buf));
     if (errCheck(crc,fin->line))
       return 1;
     else

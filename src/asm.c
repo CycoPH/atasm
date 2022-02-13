@@ -479,7 +479,7 @@ char *get_nxt_word(int tp) {
             return NULL;
         strcpy(buf, fget);
         instr = 0;
-        len = strlen(buf);
+        len = (int)strlen(buf);
         for (i = 0; i < len; i++) {
             if (buf[i] == '"')    /* fix embedded ';' problem - mws 11/10/99 */
                 instr ^= 1;
@@ -490,7 +490,7 @@ char *get_nxt_word(int tp) {
                     char* runner = &buf[i];
                     ++runner;
                     while ((*runner == ' ' || *runner == '\t') && *runner != 0) ++runner;
-                    if (strlen(runner) > 0)
+                    if ((int)strlen(runner) > 0)
                         return runner;
                     return NULL;
                 }
@@ -520,7 +520,7 @@ char *get_nxt_word(int tp) {
       return buf;
     strcpy(buf,fget);
     instr=0;
-    len=strlen(buf);
+    len=(int)strlen(buf);
     for(i=0;i<len;i++) {
       if (buf[i]=='"')    /* fix embedded ';' problem - mws 11/10/99 */
         instr^=1;
@@ -592,7 +592,7 @@ char *get_nxt_word(int tp) {
           line[i++]=' '; /* space = 32 */
       }
       /* Remove EOL characters */
-      len=strlen(line);
+      len=(int)strlen(line);
       for(i=0;i<len;i++) {
         if ((line[i]==10)||(line[i]==13))
           line[i]=0;
@@ -952,7 +952,7 @@ int add_label(char *label) {
   int v;
 
   /* If the last char of a label is a : then remove it*/
-  int labelLength = strlen(label);
+  int labelLength = (int)strlen(label);
   if (*(label + labelLength-1) == ':')
   {
       *(label + labelLength-1) = 0;
@@ -980,13 +980,13 @@ int add_label(char *label) {
         if (!opt.MAEname) {
           error("Local label must occur after a global label.",1);
         }
-        len=strlen(opt.MAEname)+strlen(label)+1;
+        len=(int)strlen(opt.MAEname)+(int)strlen(label)+1;
         sym->name=(char *)malloc(len);
         snprintf(sym->name,len,"%s%s",opt.MAEname,label);
       } else {
         int len;
         snprintf(num,32,"=%d=",local);
-        len=strlen(label)+strlen(num)+1;
+        len=(int)strlen(label)+(int)strlen(num)+1;
         sym->name=(char *)malloc(len);
         snprintf(sym->name,len,"=%d=%s",local,label+1);
       }
@@ -1243,7 +1243,7 @@ int num_cvt(char *num) {
   case IS_BINARY:   /* binary */
     v=0;
     bit=1;
-    for(i=strlen(txt)-1;i>=0;i--) {
+    for(i=(int)strlen(txt)-1;i>=0;i--) {
       if (txt[i]=='1')
         v+=bit;
       else if (txt[i]!='0') {
@@ -1519,7 +1519,7 @@ int do_xbyte(int tp) {
       look++;
       d=to_comma(look,buf);
       look=look+d;
-      add=get_immediate(buf);
+      add=(unsigned char)get_immediate(buf);
       c=1;
       if (!look)
         error("Useless statement.",0);
@@ -1527,7 +1527,7 @@ int do_xbyte(int tp) {
     case '"':
       d=to_comma(look,buf);
       look=look+d;
-      d=strlen(buf)-1;
+      d=(int)strlen(buf)-1;
       if ((d>255)||(((d<0)||(buf[0]!='"'))&&(buf[d]!='"'))||
           ((d>0)&&(buf[0]== '"')&&(buf[d]!='"'))) {
         error("Malformed string.",1);
@@ -1796,7 +1796,7 @@ int proc_sym(symbol *sym) {
         int i,len,negated=0;
         do {
           str=get_nxt_word(PARSE_NEXT_WORD);
-          len=strlen(str);
+          len=(int)strlen(str);
           for(i=0;i<len;i++) {
             str[i]=TOUPPER(str[i]);
           }
@@ -2153,7 +2153,7 @@ int do_cmd(char *buf) {
   symbol *sym;
   int i,len;
 
-  len=strlen(buf);
+  len=(int)strlen(buf);
   for(i=0;i<len;i++)
     buf[i]=TOUPPER(buf[i]);
 
@@ -2506,12 +2506,12 @@ int find_extension(char *name) {
   end=look=name+strlen(name);
   while(look!=name) {
     if (*look=='.')
-      return look-name;
+      return (int)(look-name);
     if ((*look=='/')||(*look=='\\'))
-      return end-name;
+      return (int)(end-name);
     look--;
   }
-  return end-name;
+  return (int)(end-name);
 }
 
 /*=========================================================================*
@@ -2578,7 +2578,7 @@ int main(int argc, char *argv[]) {
       opt.savetp=2;
     else if (!STRNCASECMP(argv[i],"-f",2)) {
       if (strlen(argv[i])>2)
-        opt.fillByte=get_address(argv[i]+2);
+        opt.fillByte=(unsigned char)get_address(argv[i]+2);
       else {
         fprintf(stderr, "Missing fill value for -f (example: -f0)\n");
       }

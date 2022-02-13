@@ -95,7 +95,7 @@ int read_page(FILE *in, char *buf, unsigned char *page) {
       buf[0]=0;
     if (buf[0]=='#')
       continue;
-    len=strlen(buf);
+    len=(int)strlen(buf);
     for(l=0;l+1<len;l+=2) {
       if (num<256)
         page[num++]=(unsigned char)fromhex(buf+l);

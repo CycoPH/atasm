@@ -684,7 +684,7 @@ int dump_c_header(char* header_fname, char* asm_fname)
     {
         if ( (sym->tp == EQUATE || sym->tp == LABEL) && sym->name[0] && sym->name[0] != '=')
         {
-            int len = strlen(sym->name);
+            int len = (int)strlen(sym->name);
             if (len > maxLength) maxLength = len;
         }
         sym = sym->lnk;
@@ -756,7 +756,7 @@ int dump_assembler_header(char* header_fname)
     {
         if ((sym->tp == EQUATE || sym->tp == LABEL) && sym->name[0] && sym->name[0] != '=')
         {
-            int len = strlen(sym->name);
+            int len = (int)strlen(sym->name);
             if (len > maxLength) maxLength = len;
         }
         sym = sym->lnk;
@@ -804,6 +804,32 @@ char* bestNameForSymbol(symbol* sym)
     return sym->name;
 }
 
+// Find all " and convert them to \"
+char* encodeStringForJson(char* src)
+{
+    static char buffer[1024];
+
+    if (src == NULL) {
+        buffer[0] = 0;
+        return buffer;
+    }
+
+    int len = (int)strlen(src);
+    char* dest = buffer;
+    while (*src != 0) {
+        if (*src == '"') {
+            *dest = '\\';
+            ++dest;
+        }
+        *dest = *src;
+        ++dest;
+        ++src;
+    }
+
+    return buffer;
+
+}
+
 /*
 * trackedFiles: linked list of files that have been included
 * parts: which data is to be dumped (CONSTANTS, LABEL, MACROS)
@@ -846,7 +872,7 @@ void dump_VSCode(file_tracking* trackedFiles, int parts)
                 fprintf(out, ",\"file\":\"%s\"", sym->ftrack ? sym->ftrack->name : "-");
                 fprintf(out, ",\"ln\":%d", sym->lineNr);
                 if (sym->comment) {
-                    fprintf(out, ",\"com\":\"%s\"", sym->comment);
+                    fprintf(out, ",\"com\":\"%s\"", encodeStringForJson(sym->comment));
                 }
                 fprintf(out, "}");
                 ++count;
@@ -880,7 +906,7 @@ void dump_VSCode(file_tracking* trackedFiles, int parts)
                     fprintf(out, ",\"cmdln\":\"%s\"", sym->orig);
                 }
                 if (sym->comment) {
-                    fprintf(out, ",\"com\":\"%s\"", sym->comment);
+                    fprintf(out, ",\"com\":\"%s\"", encodeStringForJson(sym->comment));
                 }
                 fprintf(out, "}");
                 ++count;
@@ -1059,7 +1085,7 @@ int macro_subst(char *name, char *in, macro_line *args, int max) {
               pnum--;
             }
             if ((cmd->line[0]=='"')&&(!stype)) {  /* numeric value for string */
-              int len=strlen(cmd->line)-2;
+              int len=(int)strlen(cmd->line)-2;
               snprintf(num,256,"%d",len); /* return str len */
               strcpy(walk,num);
             } else if ((cmd->line[0]!='"')&&(stype)) { /* string val for num */
