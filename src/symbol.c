@@ -814,7 +814,6 @@ char* encodeStringForJson(char* src)
         return buffer;
     }
 
-    int len = (int)strlen(src);
     char* dest = buffer;
     while (*src != 0) {
         if (*src == '"') {
