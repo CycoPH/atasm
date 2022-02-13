@@ -81,7 +81,7 @@ StoreHere	.byte 0
 .ENDM
 	VDLI $1234
 
-.MACRO ADD_WORD
+.MACRO ADD_WORD		; Add_word(x,y[z]) - Add two 16-bit values and store in y or (if set) in z
 	.IF %0<2 .OR %0>3
 		.ERROR "ADD_WORD: Wrong number of parameters"
 	.ELSE

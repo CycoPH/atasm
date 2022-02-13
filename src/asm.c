@@ -2619,7 +2619,7 @@ int main(int argc, char *argv[]) {
             /* There are special selectors after the -hv switch */
             /* c = constants, l = labels, m = macros */
             char* param = argv[i];
-            for (int x = 3; x < strlen(param); ++x) {
+            for (int x = 3; x < (int)strlen(param); ++x) {
                 if (!STRNCASECMP(&param[x], "c", 1)) { dumpVSCode |= DUMP_CONSTANTS; }
                 else if (!STRNCASECMP(&param[x], "l", 1)) { dumpVSCode |= DUMP_LABELS; }
                 else if (!STRNCASECMP(&param[x], "m", 1)) { dumpVSCode |= DUMP_MACROS; }

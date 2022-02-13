@@ -824,6 +824,7 @@ char* encodeStringForJson(char* src)
         ++dest;
         ++src;
     }
+    *dest = 0;
 
     return buffer;
 
@@ -934,6 +935,9 @@ void dump_VSCode(file_tracking* trackedFiles, int parts)
                 {
                     fprintf(out, ",\"file\":\"%s\"", sym->ftrack ? sym->ftrack->name : "-");
                     fprintf(out, ",\"ln\":%d", sym->lineNr);
+                }
+                if (sym->comment) {
+                    fprintf(out, ",\"com\":\"%s\"", encodeStringForJson(sym->comment));
                 }
                 fprintf(out, "}");
                 ++count;
@@ -1122,6 +1126,14 @@ int create_macro(symbol *sym) {
   symbol *entry;
   char *up;
 
+  // Check if there is a comment for the macro
+  char* comment = NULL;
+  str = get_nxt_word(PEEK_COMMENT);
+  if (str)
+  {
+    comment = STRDUP(str);
+  }
+
   str=get_nxt_word(PARSE_NEXT_LINE);
   if (!str)
     error("No macro name specified.",1);
@@ -1137,6 +1149,7 @@ int create_macro(symbol *sym) {
   entry->orig = STRDUP(str);
   entry->lineNr = fin->line;
   entry->ftrack = fin->ftrack;
+  entry->comment = comment;
 
   entry->tp=MACRON;
   entry->name=m->name=(char *)malloc(strlen(str)+1);
