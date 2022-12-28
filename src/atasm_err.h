@@ -37,6 +37,9 @@ typedef struct options {  /* structure to hold user preferences */
   int MAElocals;
   char *MAEname;
   unsigned char fillByte;
+  int symbolDumpOptions;	/* 0 = no restriction, use ".opt [no] SYMDUMP" to turn this flag on or off */
+  int showMemory;			// Output the memory layout of the code after compilation
+  int evalOnly;				// 1 then NOTHING is written to the final output file
 } options;
 
 extern options opt;

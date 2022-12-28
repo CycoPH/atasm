@@ -21,7 +21,7 @@
 #ifndef DIRECTIVE_H
 #define DIRECTIVE_H
 
-#define NUM_DIR 29
+#define NUM_DIR 31
 
 /* Give names to the 'directives' entries */
 #define DOT_BYTE 0
@@ -53,11 +53,15 @@
 #define DOT_DC 26
 #define DOT_BANK 27
 #define DOT_ALIGN 28
+#define DOT_REGION_NAME 29
+#define DOT_ELSEIF 30
 
 char *direct[NUM_DIR]={".BYTE",".CBYTE",".SBYTE",".DBYTE",".ELSE",".END",".ENDIF",
 		".ERROR",".FLOAT",".IF",".INCLUDE",".LOCAL",".OPT",".PAGE",
 		".SET",".TAB",".TITLE",".WORD","*",".ENDM",".MACRO",".DS",
-		".INCBIN",".REPT",".ENDR",".WARN",".DC",".BANK",".ALIGN"};
+		".INCBIN",".REPT",".ENDR",".WARN",".DC",".BANK",".ALIGN", ".NAME",
+        ".ELSEIF"
+};
 
 unsigned char ascii_to_screen[128] =
 {

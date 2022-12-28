@@ -5,6 +5,7 @@
     ; --------------------------------------- ;
 
     * = $2000 ; (un)comment if neccessary
+	.NAME "OPCODES"
 	;ORG $2000
     ;_main: ; (un)comment if neccessary
     ;.export _main

@@ -146,3 +146,25 @@ Feb 2, 2022
 				 Used by the "Atasm-Altirra-Bridge" VSCode plugin (https://bit.ly/3ATTHVR)
 				 Breaking default behavior change: When running atasm without a target assembler file (was test.m65)
 				 the command line help is shown. Same when specifying -h on the command line.
+Apr 4, 2022
+  version 1.18 - The -hv[clm] export option has an extra parameter: L
+				 -hv[clLm] are the available options.
+				 l = export defined labels (excluding local labels, those starting with a ?)
+				 L = export ALL labels (including local labels)
+				You can use ".OPT NO SYMDUMP" to turn off the dumping for constants. i.e.
+					.OPT NO SYMDUMP
+					.INCLUDE "ANTIC.asm"
+					.OPT SYMDUMP
+				First .opt turns off constant tracking. This means all constants
+				created from then until the ".opt SYMDUMP" will NOT make it into
+				the "asm-symbols.json" file.
+
+Dec 28, 2022
+  version 1.19 - Modified the * program counter command to also name a memory region.
+				* = $2000 "BOOT"
+				Will name the region starting at $2000 as "Boot", which will be
+				dumped after the compile for the vscode extension. Same can be
+				done via: .REGION "BOOT" directly after the * command.
+				Added -eval command line option to only do the compile and NOT
+				write anything to disc.
+				Slight warning and error format change to make it external parsable.

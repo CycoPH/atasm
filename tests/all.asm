@@ -7,9 +7,13 @@ BallFrameCounter	= zpVariables+2
 BallDirection		= zpVariables+3
 NextBallDirection	= zpVariables+4
 
+	* = $6000
+	lda #1
+	sta $6000
+
 	.include "test_opcodes.asm"
 
-	* = $3000
+	* = $3000 "BOOT"
 BOOT_THIS:
 	; Test LSB/MSB
 	lda #<BOOT_THIS
@@ -31,6 +35,7 @@ BOOT_THIS:
 
 	; Decimal constant
 	lda #12+8*[3+4]
+	sta BOOT_THIS
 
 	; Make space for 32 bytes
 	.ds 32
@@ -142,6 +147,7 @@ shape1
 	; V 1.14
 	; Labels may contain '.'
 	* = $4000
+	.NAME DATA
 	lda #255
 	sta data.cmd
 	lda data.len

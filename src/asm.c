@@ -109,14 +109,12 @@
  *               in CC65 header and Atasm include format.
  *
  *               RELEASE 1.14
- * 
  * 02/12/21 ph  -hc and -ha switch dumps now include the source file and line
  *              number where the equate or label was defined.
  *              Labels can now contain .
  *              i.e. DATA.CMD, DATA.LEN, DATA.AUX
  * 
  *              RELEASE 1.15
- * 
  * 21/12/21 ph  Added -hv switch to dump all equates, labels, macro defs and
  *              included source files to the 'plugin.json' file located
  *              at the root folder from where atasm starts searching for
@@ -124,6 +122,48 @@
  *              VSCode plugin to allow you to quickly manouver your code
  *              Added modulo/remainder operator. %% or .MOD
  *              You can now say '.byte 15%%10' and it will store the value of 5.
+ *
+ *              RELEASE 1.16
+ * 22/12/21 ph  Added the << and >> shift operators to the expression parser.
+ *              Code like this now assembles:
+ *              lda #1<<4
+ *              Fixed a bug in .LST output generator.  Filenames were not 
+ *              tracked correctly which caused source lines to be allocated to
+ *              the wrong source file. Thank you to Lars Langhans for reporting this.
+ *
+ *              RELEASE 1.17
+ * 02/02/22 ph  Extended the -hv[clm] option. You can now limit the data export
+ *              to (c)onstants, (l)abels and (m)acros. Or any combination of them.
+ *              -hvcl exports constants and labels. By default all data is exported.
+ *              Used by the "Atasm-Altirra-Bridge" VSCode plugin. Info here:
+ *              (https://bit.ly/3ATTHVR)
+ *              Breaking default behavior change: When running atasm without a
+ *              target assembler file (was test.m65) the command line help is shown.
+ *              Same when specifying -h on the command line.
+ *
+ *              RELEASE 1.18
+ * 15/04/22 ph  The -hv[clm] export option has an extra parameter: L
+ *              -hv[clLm] are the available options.
+ *                l = export defined labels; excluding local labels, those starting with a ?
+ *                L = export ALL labels (including local labels)
+ *              You can use .OPT NO SYMDUMP to turn off the dumping for constants.
+ *                .OPT NO SYMDUMP
+ *                .INCLUDE "ANTIC.asm"
+ *                .OPT SYMDUMP
+ *              First .opt turns off constant tracking. This means all constants
+ *              created from then until the ".opt SYMDUMP" will NOT make it into
+ *              the "asm-symbols.json" file.
+ * 
+ *              RELEASE 1.19
+ * 20/08/22 ph  Modified the * program counter command to also name a memory
+ *              region.
+ *              * = $2000 "BOOT"
+ *              Will name the region starting at $2000 as "Boot", which will be
+ *              dumped after the compile for the vscode extension. Same can be
+ *              done via: .NAME "BOOT" directly after the * command.
+ *              Added -eval command line option to only do the compile and NOT
+ *              write anything to disc.
+ *              Slight warning and error format change to make it external parsable.
  *==========================================================================*
  * TODO
  *   indepth testing of .IF,.ELSE,.ENDIF (signal error on mismatches?)
@@ -200,6 +240,8 @@ char *outline;  /* the line of text written out in verbose mode */
 symbol* lastSymbol = NULL;
 symbol* lastLabel = NULL;           // Which is the last label that was defined
 file_tracking* trackedFiles;
+
+memory_name* namedMemoryRegions;    // What name is given to a specific memory region, used in vscode extension
 
 FILE *listFile;
 /*=========================================================================*
@@ -290,6 +332,7 @@ int init_asm() {
   banks=NULL;
   bankID=-1;
   trackedFiles = NULL; /* keep track of all filenames used, 0 indexed */
+  namedMemoryRegions = NULL;
 
   for(i=0;i<HSIZE;i++)  /* clear symbol table */
     hash[i]=NULL;
@@ -364,6 +407,61 @@ void cleanup_FilenameTracking()
         free(old);
     }
 }
+
+
+static char* UnknownMemoryRegionName = "CODE";
+char* findNameOfMemoryRegion(int addr)
+{
+    /* Try and find the referenced memory location in the currently tracked list */
+    memory_name* runner;
+    for (runner = namedMemoryRegions; runner; runner = runner->nxt)
+    {
+        if (addr == runner->addr)
+            return runner->name;
+    }
+    return UnknownMemoryRegionName;
+}
+
+memory_name* saveNamedMemoryRegion(int addr, char* name)
+{
+    // Sanity check
+    if (name == NULL || strlen(name) == 0)
+        name = "CODE";
+
+    /* First try and find the referenced memory location in the currently tracked list */
+    memory_name* runner;
+    for (runner = namedMemoryRegions; runner; runner = runner->nxt)
+    {
+        if (addr == runner->addr)
+            return runner;
+    }
+
+    /* not found, let add the file to the list */
+    memory_name* tnew = (memory_name*)malloc(sizeof(memory_name));
+    if (tnew == NULL) {
+        error("Out of memory allocating memory region name tracker", 1);
+    }
+    tnew->addr = addr;
+    tnew->name = STRDUP(name);
+    tnew->nxt = namedMemoryRegions;
+    namedMemoryRegions = tnew;
+
+    return tnew;
+}
+
+void cleanup_MemoryRegionNameTracking()
+{
+    memory_name* runner;
+    for (runner = namedMemoryRegions; runner; )
+    {
+        memory_name* old = runner;
+
+        if (runner->name) free(runner->name);
+        runner = runner->nxt;
+        free(old);
+    }
+}
+
 
 /*=========================================================================*
  * function open_file(char *fname)
@@ -619,7 +717,7 @@ char *get_nxt_word(int tp) {
       fget++;
     }
     if (((fget)&&(!(*fget)))||(*fget==';')) {
-      /* check for full comment line */
+        /* check for full comment line */
         if (*fget == ';' && pass) {
             /* We have a comment on the 2nd pass
              * 1. Skip white space after the ;
@@ -973,6 +1071,8 @@ int add_label(char *label) {
     sym->orig = STRDUP(label);
     sym->lineNr = fin->line;
     sym->ftrack = fin->ftrack;
+
+    sym->dumpOptions = opt.symbolDumpOptions;
 
     if (label[0]=='?') {
       if (opt.MAElocals) {
@@ -1808,10 +1908,16 @@ int proc_sym(symbol *sym) {
             opt.warn=!negated;
           } else if (!strcmp(str,"LIST")) {
             verbose=!negated;
-          } else if (!strcmp(str,"ILL")) {
-            opt.ill=!negated;
-            error(".OPT ILL encountered (code would not compile on MAC/65)",0);
-          } else if (strlen(str)) {
+          }
+          else if (!strcmp(str, "ILL")) {
+              opt.ill = !negated;
+              error(".OPT ILL encountered (code would not compile on MAC/65)", 0);
+          }
+          else if (!strcmp(str,"SYMDUMP"))
+          {
+              opt.symbolDumpOptions = negated;
+          } 
+          else if (strlen(str)) {
             error("Unknown .OPT directive.",0);
           }
         } while(strlen(str));
@@ -1858,29 +1964,55 @@ int proc_sym(symbol *sym) {
     case DOT_WORD: /* .WORD */
       do_xword(sym->addr);
       break;
-    case DOT_STAR: /* '*' operator */
-      if ((!eq)||(eq==2)) {
-        error("Malformed * operator.",1);
-      }
-      if ((verbose)&&(pass))
-        aprintf("\n");
-      eq=0;
-      str=get_nxt_word(PARSE_LINE_REST);
-      squeeze_str(str);
-      if (str[0]=='*') {  /* Relative adjustment */
-        if (!init_pc)
-          error("No inital address specified.",1);
-        if (str[1]!='+')
-          error("Illegal relative adjustment.",1);
-        str[0]='0';
-        addr=get_expression(str,1);
-        pc=pc+addr;
-      } else {            /* Absolute value */
-        init_pc=1;
-        addr=get_expression(str,1);
-        pc=addr;
-      }
-      break;
+	case DOT_STAR: /* '*' operator */
+	{
+		// * = expression ["Region name"]
+		// * = * + expression ["Region name"]
+		if ((!eq) || (eq == 2)) {
+			error("Malformed * operator.", 1);
+		}
+		if ((verbose) && (pass))
+			aprintf("\n");
+		eq = 0;
+		str = get_nxt_word(PARSE_LINE_REST);
+        char* lineDup = str ? STRDUP(str) : NULL;           // Duplicate the line so that we can look for memory region name in it
+		squeeze_str(str);
+        // Check if there is a " somewhere.  Can't be part of the expression, so must be the region name
+        char* regionName = strchr(str, '"');
+        if (regionName) {
+            *regionName = 0;        // " to 0
+            ++regionName;
+        }
+
+		if (str[0] == '*') {
+			// Relative adjustment
+			if (!init_pc)
+				error("No inital address specified.", 1);
+			if (str[1] != '+')
+				error("Illegal relative adjustment.", 1);
+			str[0] = '0';
+			addr = get_expression(str, 1);
+			pc = pc + addr;
+		}
+		else {            /* Absolute value */
+			init_pc = 1;
+			addr = get_expression(str, 1);
+			pc = addr;
+		}
+        if (regionName && lineDup)
+        {
+            regionName = strchr(lineDup, '"');
+            if (regionName) {
+                *regionName = 0;
+                ++regionName;
+            }
+            // Find the last " in the region name
+            char* lastInvComma = strrchr(regionName, '"');
+            if (lastInvComma) *lastInvComma = 0;
+            saveNamedMemoryRegion(pc, regionName);
+        }
+		break;
+	}
     case DOT_ENDM:  /* .ENDM */
       error("No matching .MACRO definition for .ENDM",1);
       break;
@@ -2016,6 +2148,19 @@ int proc_sym(symbol *sym) {
         }
         if (ok == 0) {
             error("Align boundary needs to be power of 2", 1);
+        }
+        break;
+    }
+    case DOT_REGION_NAME: /* .NAME to give a name to a memory area*/
+    {
+        str = get_nxt_word(PARSE_NEXT_LINE);
+        if (str[0] == '"') {
+            str++;
+            str[strlen(str) - 1] = 0;
+        }
+        if (pass == 1)
+        {
+            saveNamedMemoryRegion(pc, str);
         }
         break;
     }
@@ -2515,6 +2660,68 @@ int find_extension(char *name) {
 }
 
 /*=========================================================================*
+ * function showMemoryLayout()
+ * Dump the memory layout to the output stream
+ * Memory Map
+ * ----------
+ * $xxxx-$yyyy Name ...
+ * $xxxx-$yyyy Name ...
+ *=========================================================================*/
+int showMemoryLayout()
+{
+	unsigned char* scan, * end;
+	int len, a, b, i, walk, start;
+	memBank* walkBank = activeBank;
+
+    fprintf(stderr, "Memory Map\n----------\n");
+
+	while (walkBank)
+	{
+		scan = walkBank->bitmap;
+		end = scan + 8192;
+		walk = start = len = 0;
+
+		while (scan != end)
+		{
+			a = *scan;
+			b = 128;
+			for (i = 0; i < 8; i++) 
+            {
+				if (a & b) 
+                {
+					if (!len) 
+                    {
+						len = 1;
+						start = walk;
+					}
+					else len++;
+				}
+				else 
+                {
+					if (len) 
+                    {
+                        fprintf(stderr, "$%.4x-$%.4x %s\n",
+                            start,
+                            start + len - 1,
+                            findNameOfMemoryRegion(start)
+                        );
+						len = start = 0;
+					}
+				}
+				b = b >> 1;
+				walk++;
+			}
+			scan++;
+		}
+		walkBank = walkBank->nxt;
+	}
+	if (count_banks() > 1)
+		fprintf(stderr, "\nCompiled %d banks\n", count_banks());
+
+	return 1;
+}
+
+/*=========================================================================*
  * Show command line help
  *=========================================================================*/
 void showHelp(char *executable)
@@ -2535,7 +2742,10 @@ void showHelp(char *executable)
     fputs("         -mae: treats local labels like MAE assembler\n", stderr);
     fputs("         -hc[fname]: dumps equates and labels to header file for CC65\n", stderr);
     fputs("         -ha[fname]: dumps equates and labels to header file for assembler\n", stderr);
-    fputs("         -hv[clm]: dumps all info for VSCode plugin. c=constants, l=labels, m=macros\n", stderr);
+    fputs("         -hv[clLm]: dumps all info for VSCode plugin. c=constants, l=labels (primary/no?), L=labels (ALL), m=macros\n", stderr);
+    fputs("         -noshowmem: Do not dump the memory layout\n", stderr);
+    fputs("         -eval: Just run the assembler producing data but don't write the output to disc\n", stderr);
+
 }
 
 /*=========================================================================*
@@ -2543,214 +2753,255 @@ void showHelp(char *executable)
  *
  * starts the whole process
  *=========================================================================*/
-int main(int argc, char *argv[]) {
-  char outfile[256],fname[256],snap[256],xname[256],labelfile[256],listfile[256];
-  char cheaderfile[256+2], asmheaderfile[256+4];
-  int dsymbol,i,state;
-  int dumpVSCode;
+int main(int argc, char* argv[]) 
+{
+	char outfile[256], fname[256], snap[256], xname[256], labelfile[256], listFilename[256];
+	char cheaderfile[256 + 2], asmheaderfile[256 + 4];
+	int dsymbol, i, state;
+	int dumpVSCode;
 
-  int create_c_header_fn, create_asm_header_fn;
+	int create_c_header_fn, create_asm_header_fn;
 
-  fprintf(stderr,"ATasm %d.%.2d%s(A mostly Mac65 compatible 6502 cross-assembler)\n",MAJOR_VER,MINOR_VER,BETA_VER?" beta ":" ");
+	fprintf(stderr, "ATasm %d.%.2d%s(A mostly Mac65 compatible 6502 cross-assembler)\n", MAJOR_VER, MINOR_VER, BETA_VER ? " beta " : " ");
 
-  create_c_header_fn = create_asm_header_fn = 0;
-  dsymbol=state=0;
-  dumpVSCode = DUMP_NOTHING;   /* No dumping of constant, label, macros, and includes to 'asm-symbols.json' file */
-  strcpy(snap,"atari800.a8s");
-  fname[0]=outfile[0]=labelfile[0]=listfile[0]=cheaderfile[0]=asmheaderfile[0]='\0';
-  opt.savetp=opt.verbose=opt.MAElocals=0;
-  opt.fillByte=0xff;
+	create_c_header_fn = create_asm_header_fn = 0;
+	dsymbol = state = 0;
+	dumpVSCode = DUMP_NOTHING;          // No dumping of constant, label, macros, and includes to 'asm-symbols.json' file
+	strcpy(snap, "atari800.a8s");
+	fname[0] = outfile[0] = labelfile[0] = listFilename[0] = cheaderfile[0] = asmheaderfile[0] = '\0';
+	memset(&opt, 0, sizeof(opt));
+	opt.savetp = opt.verbose = opt.MAElocals = 0;
+	opt.fillByte = 0xff;
+	opt.symbolDumpOptions = 0;        /* no restriction */
+	opt.showMemory = 1;               // Show memory layout at end of compilation
+	opt.evalOnly = 0;                 // Do the normal assemble and output. If turned on then no binary file is written to disk
 
-  includes=init_include();
-  predefs=NULL;
-  listFile=NULL;
+	includes = init_include();
+	predefs = NULL;
+	listFile = NULL;
 
-  for(i=1;i<argc;i++) {
-    if (!STRCASECMP(argv[i],"-v"))
-      opt.verbose|=1;
-    else if (!STRCASECMP(argv[i],"--version"))
-      return 0;
-    else if (!STRCASECMP(argv[i],"-u"))
-      opt.ill=1;
-    else if (!STRCASECMP(argv[i],"-mae"))
-      opt.MAElocals=1;
-    else if (!STRCASECMP(argv[i],"-r"))
-      opt.savetp=2;
-    else if (!STRNCASECMP(argv[i],"-f",2)) {
-      if (strlen(argv[i])>2)
-        opt.fillByte=(unsigned char)get_address(argv[i]+2);
-      else {
-        fprintf(stderr, "Missing fill value for -f (example: -f0)\n");
-      }
-    } else if (!STRNCASECMP(argv[i],"-o",2)) {
-      if (strlen(argv[i])>2) {
-        strcpy(outfile, argv[i]+2);
-      } else {
-        fprintf(stderr, "Must specify output file for -o (example: -omyprog.bin)\n");
-        return 1;
-      }
-    } else if (!STRNCASECMP(argv[i],"-l",2)) {
-      if (strlen(argv[i])>2) {
-        strcpy(labelfile, argv[i]+2);
-      } else {
-        fprintf(stderr, "Must specify label output file for -l (example: -llabels.lab)\n");
-        return 1;
-      }
-    } 
-	else if (!STRNCASECMP(argv[i], "-hc", 3))
-	{
-		if (strlen(argv[i]) > 3) {
-			strcpy(cheaderfile, argv[i] + 3);
+	for (i = 1; i < argc; i++) 
+    {
+		if (!STRCASECMP(argv[i], "-v"))
+			opt.verbose |= 1;
+		else if (!STRCASECMP(argv[i], "--version"))
+			return 0;
+		else if (!STRCASECMP(argv[i], "-u"))
+			opt.ill = 1;
+		else if (!STRCASECMP(argv[i], "-mae"))
+			opt.MAElocals = 1;
+		else if (!STRCASECMP(argv[i], "-r"))
+			opt.savetp = 2;
+		else if (!STRNCASECMP(argv[i], "-f", 2)) {
+			if (strlen(argv[i]) > 2)
+				opt.fillByte = (unsigned char)get_address(argv[i] + 2);
+			else {
+				fprintf(stderr, "Missing fill value for -f (example: -f0)\n");
+			}
 		}
-		else {
-            create_c_header_fn = 1;
+		else if (!STRNCASECMP(argv[i], "-o", 2)) {
+			if (strlen(argv[i]) > 2) {
+				strcpy(outfile, argv[i] + 2);
+			}
+			else {
+				fprintf(stderr, "Must specify output file for -o (example: -omyprog.bin)\n");
+				return 1;
+			}
 		}
+		else if (!STRNCASECMP(argv[i], "-l", 2)) {
+			if (strlen(argv[i]) > 2) {
+				strcpy(labelfile, argv[i] + 2);
+			}
+			else {
+				fprintf(stderr, "Must specify label output file for -l (example: -llabels.lab)\n");
+				return 1;
+			}
+		}
+		else if (!STRNCASECMP(argv[i], "-hc", 3))
+		{
+			if (strlen(argv[i]) > 3) {
+				strcpy(cheaderfile, argv[i] + 3);
+			}
+			else {
+				create_c_header_fn = 1;
+			}
+		}
+		else if (!STRNCASECMP(argv[i], "-ha", 3)) {
+			if (strlen(argv[i]) > 3) {
+				strcpy(asmheaderfile, argv[i] + 3);
+			}
+			else {
+				create_asm_header_fn = 1;
+			}
+		}
+		else if (!STRNCASECMP(argv[i], "-hv", 3)) {
+			if (strlen(argv[i]) > 3) {
+				/* There are special selectors after the -hv switch */
+				/* c = constants, l = labels, m = macros */
+				char* param = argv[i];
+				for (int x = 3; x < (int)strlen(param); ++x) {
+					if (!STRNCASECMP(&param[x], "c", 1)) { dumpVSCode |= DUMP_CONSTANTS; }
+					else if (!STRNCASECMP(&param[x], "l", 1)) { dumpVSCode |= DUMP_LABELS_PRIMARY; }
+					else if (!STRNCASECMP(&param[x], "L", 1)) { dumpVSCode |= DUMP_LABELS_ALL; }
+					else if (!STRNCASECMP(&param[x], "m", 1)) { dumpVSCode |= DUMP_MACROS; }
+				}
+				// Hmm, did not select anything useful, so dump it all
+				if (dumpVSCode == DUMP_NOTHING)
+					dumpVSCode = DUMP_ALL;
+			}
+			else {
+				/* Dump all the items */
+				dumpVSCode = DUMP_ALL; /* constants, labels, macros, (includes are always dumped) */
+			}
+		}
+		else if (!STRNCASECMP(argv[i], "-g", 2)) {
+			if (strlen(argv[i]) > 2) {
+				strcpy(listFilename, argv[i] + 2);
+			}
+			else {
+				fprintf(stderr, "Must specify list output file for -g (example: -glist.lst)\n");
+				return 1;
+			}
+		}
+		else if (!strncmp(argv[i], "-I", 2))
+		{
+			if (strlen(argv[i]) > 2)
+				append_include(includes, argv[i] + 2);
+			else {
+				fprintf(stderr, "Must specify directory for -I (example: -Imyincludes or -I" DIR_SEP "stuff" DIR_SEP "nonsense)\n");
+				return 1;
+			}
+		}
+		else if (!STRNCASECMP(argv[i], "-d", 2)) {
+			str_list* str = (str_list*)malloc(sizeof(str_list));
+			str->str = (char*)malloc(strlen(argv[i] + 1));
+			strcpy(str->str, argv[i] + 2);
+			str->next = predefs;
+			predefs = str;
+		}
+		else if (!STRCASECMP(argv[i], "-s"))
+			dsymbol = 1;
+		else if (!STRNCASECMP(argv[i], "-x", 2)) {
+			if (strlen(argv[i]) > 2)
+				strcpy(xname, argv[i] + 2);
+			else {
+				fprintf(stderr, "Must specify .XFD file.\n");
+				return 1;
+			}
+			opt.savetp = 1;
+		}
+		else if (!STRNCASECMP(argv[i], "-m", 2)) {
+			if (strlen(argv[i]) > 2)
+				strcpy(snap, argv[i] + 2);
+			else
+				fprintf(stderr, "Using default state file: '%s'\n", snap);
+			state = 1;
+		}
+		else if (!STRCASECMP(argv[i], "-h")) {
+			showHelp(argv[0]);
+			return 1;
+		}
+		else if (!STRCASECMP(argv[i], "-noshowmem"))
+		{
+			opt.showMemory = 0;
+		}
+		else if (!STRCASECMP(argv[i], "-eval"))
+		{
+			opt.evalOnly = 1;
+		}
+		else strcpy(fname, argv[i]);
 	}
-	else if (!STRNCASECMP(argv[i], "-ha", 3)) {
-		if (strlen(argv[i]) > 3) {
-			strcpy(asmheaderfile, argv[i] + 3);
-		}
-		else {
-            create_asm_header_fn = 1;
-		}
+
+	if (!strlen(fname)) {
+		// strcpy(fname,"test.m65");
+		showHelp(argv[0]);
+		return 1;
 	}
-    else if (!STRNCASECMP(argv[i], "-hv", 3)) {
-        if (strlen(argv[i]) > 3) {
-            /* There are special selectors after the -hv switch */
-            /* c = constants, l = labels, m = macros */
-            char* param = argv[i];
-            for (int x = 3; x < (int)strlen(param); ++x) {
-                if (!STRNCASECMP(&param[x], "c", 1)) { dumpVSCode |= DUMP_CONSTANTS; }
-                else if (!STRNCASECMP(&param[x], "l", 1)) { dumpVSCode |= DUMP_LABELS; }
-                else if (!STRNCASECMP(&param[x], "m", 1)) { dumpVSCode |= DUMP_MACROS; }
-            }
-            // Hmm, did not select anything useful, so dump it all
-            if (dumpVSCode == DUMP_NOTHING)
-                dumpVSCode = DUMP_ALL;
-        }
-        else {
-            /* Dump all the items */
-            dumpVSCode = DUMP_ALL; /* constants, labels, macros, (includes are always dumped) */
-        }
-    }
-    else if (!STRNCASECMP(argv[i],"-g",2)) {
-      if (strlen(argv[i])>2) {
-        strcpy(listfile, argv[i]+2);
-        listFile=fopen(listfile,"wt");
+
+    if (strlen(listFilename) > 0 && opt.evalOnly == 0)
+    {
+        listFile = fopen(listFilename, "wt");
         if (!listFile) {
-          fprintf(stderr, "Cannot write to list file'%s'\n",listfile);
-          return 1;
+            fprintf(stderr, "Cannot write to list file'%s'\n", listFilename);
+            return 1;
         }
-        opt.verbose|=2;
+        opt.verbose |= 2;
         /* Write a fake header so that Altirra will recognise this as a listing */
         fprintf(listFile, "mads (generated by atasm)\n");
-      } else {
-        fprintf(stderr, "Must specify list output file for -g (example: -glist.lst)\n");
-        return 1;
-      }
-    } else if (!strncmp(argv[i], "-I", 2))
-      if (strlen(argv[i])>2)
-        append_include(includes, argv[i]+2);
-    else {
-      fprintf(stderr, "Must specify directory for -I (example: -Imyincludes or -I" DIR_SEP "stuff" DIR_SEP "nonsense)\n");
-      return 1;
     }
-    else if (!STRNCASECMP(argv[i],"-d",2)) {
-      str_list *str=(str_list *)malloc(sizeof(str_list));
-      str->str=(char *)malloc(strlen(argv[i]+1));
-      strcpy(str->str,argv[i]+2);
-      str->next=predefs;
-      predefs=str;
-    } else if (!STRCASECMP(argv[i],"-s"))
-      dsymbol=1;
-    else if (!STRNCASECMP(argv[i],"-x",2)) {
-      if (strlen(argv[i])>2)
-        strcpy(xname,argv[i]+2);
-      else {
-        fprintf(stderr,"Must specify .XFD file.\n");
-        return 1;
-      }
-      opt.savetp=1;
-    } else if (!STRNCASECMP(argv[i],"-m",2)) {
-      if (strlen(argv[i])>2)
-        strcpy(snap,argv[i]+2);
-      else
-        fprintf(stderr,"Using default state file: '%s'\n",snap);
-      state=1;
-    } else if (!STRCASECMP(argv[i],"-h")) {
-      showHelp(argv[0]);
-      return 1;
-    } else strcpy(fname,argv[i]);
-  }
 
-  if (!strlen(fname)) {
-    // strcpy(fname,"test.m65");
-    showHelp(argv[0]);
-    return 1;
-  }
+	/* If the -hc or -ha options did not specify a filename lets create them now */
+	if (create_c_header_fn)
+		sprintf(cheaderfile, "%s.h", fname);
+	if (create_asm_header_fn)
+		sprintf(asmheaderfile, "%s.inc", fname);
 
-  /* If the -hc or -ha options did not specify a filename lets create them now */
-  if (create_c_header_fn)
-      sprintf(cheaderfile, "%s.h", fname);
-  if (create_asm_header_fn)
-      sprintf(asmheaderfile, "%s.inc", fname);
+	init_asm();
+	assemble(fname);
 
-  init_asm();
-  assemble(fname);
+	if (dsymbol)
+		dump_symbols();
 
-  if (dsymbol)
-    dump_symbols();
+	if (labelfile[0] && opt.evalOnly == 0)
+		dump_labels(labelfile);
 
-  if (labelfile[0])
-    dump_labels(labelfile);
+	if (cheaderfile[0] && opt.evalOnly == 0)
+		dump_c_header(cheaderfile, fname);
 
-  if (cheaderfile[0])
-      dump_c_header(cheaderfile, fname);
+	if (asmheaderfile[0] && opt.evalOnly == 0)
+		dump_assembler_header(asmheaderfile);
 
-  if (asmheaderfile[0])
-      dump_assembler_header(asmheaderfile);
+	if (dumpVSCode)
+		dump_VSCode(trackedFiles, dumpVSCode);
 
-  if (dumpVSCode)
-      dump_VSCode(trackedFiles, dumpVSCode);
+	fputs("\nAssembly successful\n", stderr);
+	fprintf(stderr, "  Compiled %d bytes (~%dk)\n", bsize, bsize / 1024);
 
-  fputs("\nAssembly successful\n",stderr);
-  fprintf(stderr,"  Compiled %d bytes (~%dk)\n",bsize,bsize/1024);
+	if (listFile) {
+		fclose(listFile);
+		listFile = NULL;
+		listFilename[0] = 0;
+	}
 
-  if (listFile) {
-    fclose(listFile);
-    listFile=NULL;
-    listfile[0]=0;
-  }
+	activeBank = banks;
 
-  activeBank=banks;
+	if (!strlen(outfile)) {
+		fname[find_extension(fname)] = 0;
+		strcat(fname, (opt.savetp) & 2 ? ".bin" : ".65o");
+		strcpy(outfile, fname);
+	}
+	if (opt.evalOnly == 0)
+	{
+		if (opt.savetp & 2)
+			save_raw(outfile, opt.fillByte);
+		else
+			save_binary(outfile);
 
-  if(!strlen(outfile)) {
-    fname[find_extension(fname)]=0;
-    strcat(fname,(opt.savetp)&2 ? ".bin" : ".65o");
-    strcpy(outfile, fname);
-  }
-  if (opt.savetp&2)
-    save_raw(outfile,opt.fillByte);
-  else
-    save_binary(outfile);
+		if (opt.savetp & 1) {
+			if (write_xfd_file(xname, outfile) < 0)
+				error("Atari disk image not updated.", 0);
+		}
+		if (state) {
+			if (count_banks() > 1) {
+				error("Banks currently not supported in save state files.  Save state not updated.", 0);
+			}
+			else {
+				save_state(snap, fname);
+			}
+		}
+	}
+	if (opt.showMemory)
+	{
+		showMemoryLayout();
+	}
 
-  if (opt.savetp&1) {
-    if(write_xfd_file(xname,outfile)<0)
-      error("Atari disk image not updated.",0);
-  }
 
-  if (state) {
-    if (count_banks()>1) {
-      error("Banks currently not supported in save state files.  Save state not updated.",0);
-    } else {
-      save_state(snap,fname);
-    }
-  }
 
-  clean_up();
-  cleanup_FilenameTracking();
+	clean_up();
+	cleanup_FilenameTracking();
+	cleanup_MemoryRegionNameTracking();
 
-  /* _CrtDumpMemoryLeaks(); */
-  return 0;
+	/* _CrtDumpMemoryLeaks(); */
+	return 0;
 }
 /*=========================================================================*/

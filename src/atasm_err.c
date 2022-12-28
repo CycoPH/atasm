@@ -32,7 +32,7 @@
 #include "symbol.h"
 
 #define ISIZE 128
-ihashNode *ihash[ISIZE];
+ihashNode* ihash[ISIZE];
 
 /*=========================================================================*
  * Function: errAdd, add an item to the warning table
@@ -40,32 +40,33 @@ ihashNode *ihash[ISIZE];
  * Returns: bool indicating success
  *=========================================================================*/
 void errAdd(unsigned int id, unsigned int num) {
-  ihashNode *in;
-  unsigned int key=id;
-  key+=~(key<<15);
-  key^=(key>>10);
-  key+=(key<<3);
-  key^=(key>>6);
-  key+=~(key<<11);
-  key^=(key>>16);
-  key=key%ISIZE;
+	ihashNode* in;
+	unsigned int key = id;
+	key += ~(key << 15);
+	key ^= (key >> 10);
+	key += (key << 3);
+	key ^= (key >> 6);
+	key += ~(key << 11);
+	key ^= (key >> 16);
+	key = key % ISIZE;
 
-  in=(ihashNode *)malloc(sizeof(ihashNode));
-  if (!in) {
-    error("Out of memory creating warning table", 1);
-  }
-  in->id=id;
-  in->data=num;
-  in->nxt=NULL;
-  if (ihash[key]) {
-    ihashNode *walk=ihash[key];
-    while(walk->nxt) {
-      walk=walk->nxt;
-    }
-    walk->nxt=in;
-  } else {
-    ihash[key]=in;
-  }
+	in = (ihashNode*)malloc(sizeof(ihashNode));
+	if (!in) {
+		error("Out of memory creating warning table", 1);
+	}
+	in->id = id;
+	in->data = num;
+	in->nxt = NULL;
+	if (ihash[key]) {
+		ihashNode* walk = ihash[key];
+		while (walk->nxt) {
+			walk = walk->nxt;
+		}
+		walk->nxt = in;
+	}
+	else {
+		ihash[key] = in;
+	}
 }
 
 /*=========================================================================*
@@ -74,68 +75,86 @@ void errAdd(unsigned int id, unsigned int num) {
  * Returns: the object, or NULL if not found
  *=========================================================================*/
 int errCheck(unsigned int id, unsigned int num) {
-  ihashNode *look;
+	ihashNode* look;
 
-  unsigned int key=id;
-  key+=~(key<<15);
-  key^=(key>>10);
-  key+=(key<<3);
-  key^=(key>>6);
-  key+=~(key<<11);
-  key^=(key>>16);
-  key=key%ISIZE;
+	unsigned int key = id;
+	key += ~(key << 15);
+	key ^= (key >> 10);
+	key += (key << 3);
+	key ^= (key >> 6);
+	key += ~(key << 11);
+	key ^= (key >> 16);
+	key = key % ISIZE;
 
-  if (!ihash[key])
-    return 0;
-  look=ihash[key];
-  while(look) {
-    if ((look->id==id)&&(look->data==num))
-      return 1;
-    look=look->nxt;
-  }
-  return 0;
+	if (!ihash[key])
+		return 0;
+	look = ihash[key];
+	while (look) {
+		if ((look->id == id) && (look->data == num))
+			return 1;
+		look = look->nxt;
+	}
+	return 0;
 }
 /*=========================================================================*
  * function error(char *err, int tp)
  * parameters: err - the error message
- *             tp  - the error severity (0=warning, else fatal error)
+ *             errLevel  - the error severity (0=warning, else fatal error)
  *
  * generates an error/warning message to stderr, including the position
  * of the error
  *=========================================================================*/
-int error(char *err, int tp) {
-  if ((!opt.warn)&&(!tp)) { /* Suppress warnings, if option no warn set */
-    warn++;
-    return 1;
-  }
-  if (fin) {
-    char buf[256];
-    unsigned int crc;
+int error(char* err, int errLevel)
+{
+	char* filename = "UNKNOWN";
+	int lineNumber = 0;
+	char macroMsg[1024];
+	macroMsg[0] = 0;
 
-    snprintf(buf,256,"%s%d%s",fin->name,fin->line,err);
-    crc=err_crc32((unsigned char *)buf,(int)strlen(buf));
-    if (errCheck(crc,fin->line))
-      return 1;
-    else
-      errAdd(crc,fin->line);
+	if (opt.warn == 0 && errLevel == 0) {
+		// Suppress warnings, if option no warn set
+		warn++;
+		return 1;
+	}
+	if (fin)
+	{
+		char buf[256];
+		unsigned int crc;
 
-    if (!invoked)
-      fprintf(stderr,"\nIn %s, line %d--\n ",fin->name,fin->line);
-    else
-      fprintf(stderr,"\nIn %s, line %d--[while expanding macro '%s']\n ",fin->name,fin->line,invoked->orig->name);
-  }
-  if (tp) {
-    fprintf(stderr,"Error: ");
-  } else {
-    fprintf(stderr,"Warning: ");
-  }
-  fprintf(stderr,"%s\n",err);
-  if (tp) {
-    if (listFile)
-      fclose(listFile);
-    exit(tp);
-  }
-  warn++;
-  return 0;
+		snprintf(buf, 256, "%s%d%s", fin->name, fin->line, err);
+		crc = err_crc32((unsigned char*)buf, (int)strlen(buf));
+		if (errCheck(crc, fin->line))
+			return 1;
+		else
+			errAdd(crc, fin->line);
+
+		filename = fin->name;
+		lineNumber = fin->line;
+
+		if (invoked)
+			sprintf(macroMsg, "--[while expanding macro '%s']", invoked->orig->name);
+
+		//fprintf(stderr, "\nIn %s\n ", fin->name);
+		/*if (!invoked)
+			fprintf(stderr, "\nIn %s, line %d--\n ", fin->name, fin->line);
+		else
+			fprintf(stderr, "\nIn %s, line %d--[while expanding macro '%s']\n ", fin->name, fin->line, invoked->orig->name);
+		*/
+	}
+	fprintf(stderr, "\n %s: %s:%d: %s%s\n",
+		errLevel ? "Error" : "Warning",
+		filename, lineNumber,
+		err,
+		macroMsg
+	);
+	if (errLevel)
+	{
+		// Exit on error
+		if (listFile)
+			fclose(listFile);
+		exit(errLevel);
+	}
+	warn++;
+	return 0;
 }
 /*=========================================================================*/
