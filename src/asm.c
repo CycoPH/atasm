@@ -220,6 +220,9 @@
 #include "atasm_err.h"
 
 
+#define MAX_IF_DEPTH    100
+int dotIfLevel = 0;    // No .IF if active, >0 means we are inside a .IF
+int doneIfPart[MAX_IF_DEPTH] = { 0 };
 
 unsigned short pc;    /* program counter */
 int init_pc;          /* pc orig flag */
@@ -1762,30 +1765,79 @@ int incbin(char *fname) {
   fclose(in);
   return 0;
 }
+
+void clearDoneIfPartIndicators(int depth)
+{
+    for (; depth < MAX_IF_DEPTH; ++depth)
+    {
+        doneIfPart[depth] = 0;
+    }
+}
+
 /*=========================================================================*
  * function skip_if()
  *
- * this skips code until a matching .ENDIF or .ELSEIF is found
- * correctly handles nested .IFs
+ * This skips code until a matching .ENDIF,.ELSE or .ELSEIF is found.
+ * Correctly handles nested .IFs
  *=========================================================================*/
-int skip_if() {
-  int i=0;
-  char *str;
+int skip_if()
+{
+	int level = 0;
+	char* str;
+    int evaledExpression;
 
-  while(i>=0) {
-    str=get_nxt_word(PARSE_SKIP);
-    if (!str)
-      error("Mismached .IF/.ELSE/.ENDIF statements.",1);
-    if (!STRCASECMP(str,".IF"))
-      i++;
-    if (!STRCASECMP(str,".ENDIF"))
-      i--;
-    if ((!STRCASECMP(str,".ELSE"))&&(!i))
-      i--;
-  }
-  eq=0;
-  return 1;
+	while (level >= 0) 
+    {
+		str = get_nxt_word(PARSE_SKIP);
+		if (!str)
+			error("Mismatched .IF/.ELSEIF/.ELSE/.ENDIF statements.", 1);
+
+        printf("%s ", str);
+
+		if (!STRCASECMP(str, ".IF"))
+			level++;
+        if (!STRCASECMP(str, ".ENDIF"))
+        {
+            level--;
+            if (level < 0)
+            {
+                // Exiting the block
+                --dotIfLevel;
+                if (dotIfLevel < 0)
+                    error("Mismatched .IF/.ELSEIF/.ELSE/.ENDIF statements.", 1);
+            }
+        }
+
+        if (!STRCASECMP(str, ".ELSE") && level == 0)
+        {
+            if (doneIfPart[dotIfLevel] == 0)
+            {
+                level--;
+            }
+        }
+        if (!STRCASECMP(str, ".ELSEIF") && level == 0)
+        {
+            if (doneIfPart[dotIfLevel] == 0)
+            {
+                // Found an .elseif at the top level
+                // Already skipping a block, so check if we need to continue skipping or process this block
+                str = get_nxt_word(PARSE_LINE_REST);
+                squeeze_str(str);
+                eq = 0;
+                evaledExpression = get_expression(str, 1);
+                if (evaledExpression)
+                {
+                    // This is the part to process
+                    doneIfPart[dotIfLevel] = 1;
+                    level--;
+                }
+            }
+        }
+	}
+	eq = 0;
+	return 1;
 }
+
 /*=========================================================================*
  * function proc_sym(symbol *sym)
  * parameter sym- the symbol to parse
@@ -1793,500 +1845,554 @@ int skip_if() {
  * This function handles operands and system defines, farming out to the
  * appropriate functions
  *=========================================================================*/
-int proc_sym(symbol *sym) {
-  char *line, *str=NULL;
-  short addr;
-  int i,stor;
-  macro_call *mc;
-  char buf[80];
-  int currentPC = 0;        /* current PC*/
+int proc_sym(symbol *sym) 
+{
+	char* line, * str = NULL;
+	short addr;
+	int i, stor;
+	macro_call* mc;
+	char buf[80];
+	int currentPC = 0;        /* current PC*/
 
-  if (pass == 1 && lastLabel && lastLabel->ftrack == fin->ftrack && lastLabel->lineNr == fin->line) {
-      // On the 2nd pass look if there is a comment after the equate
-      str = get_nxt_word(PEEK_COMMENT);
-      if (str)
-      {
-          // Add the comment to the label
-          lastLabel->comment = STRDUP(str);
-      }
-      str = NULL;
-  }
-
-  switch (sym->tp) {
-  case OPCODE:  /* opcode */
-    if (!init_pc)
-      error("No initial address specified.",1);
-    if ((verbose) && (pass)) {
-        currentPC = print_pc();
-     }
-
-    if(sym->addr >= LEGAL_OPS && !opt.ill)
-      error("6502 `illegal' opcode used without `.OPT ILL' or -u",1);
-
-    if (num_args[sym->addr]) {
-      str=get_nxt_word(PARSE_LINE_REST);
-      squeeze_str(str);
-      parse_operand(sym,str);
-    } else {
-      get_single(sym);
-    }
-    if ((verbose)&&(pass)) {
-      if (lastSymbol && ( (lastSymbol->addr & 0xFFFF) == currentPC) && lastSymbol->lineNr != fin->line) {
-        /* Write the original/unmodified symbol name to the outline */
-        sprintf(buf, " %s ", lastSymbol->orig);
-        strcat(outline, buf);
-      }
-      while(strlen(outline)<16)
-        strcat(outline," ");
-      line=get_nxt_word(PARSE_CURRENT_LINE);
-      aprintf("%s%s\n",outline,line);
-      /*      if (invoked) {
-  printf("\t\t[inside %s]\n",invoked->orig->name);
-      } else {
-  printf("\n");
-      }  */
-    }
-    break;
-  case DIRECT:  /* system def */
-    switch(sym->addr) {
-    case DOT_BYTE:  /* .BYTE */
-    case DOT_CBYTE:  /* .CBYTE */
-    case DOT_SBYTE:  /* .SBYTE */
-      do_xbyte(sym->addr);
-      break;
-    case DOT_DBYTE:  /* .DBYTE */
-      do_xword(sym->addr);
-      break;
-    case DOT_ELSE: /* .ELSE */
-      skip_if();
-      break;
-    case DOT_END:  /* .END */
-      break;
-    case DOT_ENDIF: /* .ENDIF */
-      break;
-    case DOT_ERROR: /* .ERROR */
-      str=get_nxt_word(PARSE_NEXT_LINE);
-      error(str,1);
-      break;
-    case DOT_FLOAT: /* .FLOAT */
-      do_float();
-      break;
-    case DOT_IF: /* .IF */
-      str=get_nxt_word(PARSE_LINE_REST);
-      squeeze_str(str);
-      eq=0;
-      addr=get_expression(str,1);
-      if (!addr)
-        skip_if();
-      break;
-    case DOT_INCLUDE:  /* .INCLUDE */
-      str=get_nxt_word(PARSE_NEXT_LINE);
-      if (str[0]=='"') {
-        str++;
-        str[strlen(str)-1]=0;
-      }
-      open_file(str);
-      break;
-    case DOT_LOCAL: /* .LOCAL */
-      local++;
-      if (local>62)
-        error("Over 62 local regions defined, will not compile on MAC/65.",0);
-      break;
-    case DOT_OPT: { /* .OPT */
-        int i,len,negated=0;
-        do {
-          str=get_nxt_word(PARSE_NEXT_WORD);
-          len=(int)strlen(str);
-          for(i=0;i<len;i++) {
-            str[i]=TOUPPER(str[i]);
-          }
-          if (!strcmp(str,"NO")) {
-            negated=1;
-          } else if (!strcmp(str,"OBJ")) {
-            opt.obj=!negated;
-          } else if (!strcmp(str,"ERR")) {
-            opt.warn=!negated;
-          } else if (!strcmp(str,"LIST")) {
-            verbose=!negated;
-          }
-          else if (!strcmp(str, "ILL")) {
-              opt.ill = !negated;
-              error(".OPT ILL encountered (code would not compile on MAC/65)", 0);
-          }
-          else if (!strcmp(str,"SYMDUMP"))
-          {
-              opt.symbolDumpOptions = negated;
-          } 
-          else if (strlen(str)) {
-            error("Unknown .OPT directive.",0);
-          }
-        } while(strlen(str));
-        break;
-      }
-    case DOT_SET: /* .SET */
-      get_nxt_word(PARSE_REPLACE_COMMAS);
-      str=get_nxt_word(PARSE_NEXT_WORD);
-      if (!str)
-        squeeze_str(str);
-      if (strlen(str)) {
-        int opt;
-        sscanf(str,"%d",&opt);
-        /* only honor option 6 at the moment... */
-        if (opt==6) {
-          int ofs;
-          str=get_nxt_word(PARSE_LINE_REST);
-          squeeze_str(str);
-          if (strlen(str)) {
-            if (pass) {
-              ofs=get_signed_expression(str,1);
-            } else {
-              ofs=0;
-            }
-            if ((ofs>=-65535)&&(ofs<=65535)) {
-              activeBank->offset=ofs;
-            } else {
-              error("Illegal .SET 6 offset ignored",0);
-            }
-          }
-        } else {
-          error("Unhandled .SET ignored",0);
-          str=get_nxt_word(PARSE_LINE_REST);
-        }
-      }
-      break;
-    case DOT_PAGE: /* .PAGE */
-    case DOT_TAB: /* .TAB */
-    case DOT_TITLE: /* .TITLE */
-      do {
-        str=get_nxt_word(PARSE_NEXT_WORD);
-      } while(strlen(str));
-      break;
-    case DOT_WORD: /* .WORD */
-      do_xword(sym->addr);
-      break;
-	case DOT_STAR: /* '*' operator */
-	{
-		// * = expression ["Region name"]
-		// * = * + expression ["Region name"]
-		if ((!eq) || (eq == 2)) {
-			error("Malformed * operator.", 1);
+	if (pass == 1 && lastLabel && lastLabel->ftrack == fin->ftrack && lastLabel->lineNr == fin->line) {
+		// On the 2nd pass look if there is a comment after the equate
+		str = get_nxt_word(PEEK_COMMENT);
+		if (str)
+		{
+			// Add the comment to the label
+			lastLabel->comment = STRDUP(str);
 		}
-		if ((verbose) && (pass))
-			aprintf("\n");
-		eq = 0;
-		str = get_nxt_word(PARSE_LINE_REST);
-        char* lineDup = str ? STRDUP(str) : NULL;           // Duplicate the line so that we can look for memory region name in it
-		squeeze_str(str);
-        // Check if there is a " somewhere.  Can't be part of the expression, so must be the region name
-        char* regionName = strchr(str, '"');
-        if (regionName) {
-            *regionName = 0;        // " to 0
-            ++regionName;
-        }
-
-		if (str[0] == '*') {
-			// Relative adjustment
-			if (!init_pc)
-				error("No inital address specified.", 1);
-			if (str[1] != '+')
-				error("Illegal relative adjustment.", 1);
-			str[0] = '0';
-			addr = get_expression(str, 1);
-			pc = pc + addr;
-		}
-		else {            /* Absolute value */
-			init_pc = 1;
-			addr = get_expression(str, 1);
-			pc = addr;
-		}
-        if (regionName && lineDup)
-        {
-            regionName = strchr(lineDup, '"');
-            if (regionName) {
-                *regionName = 0;
-                ++regionName;
-            }
-            // Find the last " in the region name
-            char* lastInvComma = strrchr(regionName, '"');
-            if (lastInvComma) *lastInvComma = 0;
-            saveNamedMemoryRegion(pc, regionName);
-        }
-		break;
+		str = NULL;
 	}
-    case DOT_ENDM:  /* .ENDM */
-      error("No matching .MACRO definition for .ENDM",1);
-      break;
-    case DOT_MACRO:  /* .MACRO definition */
-      if (!pass)
-        create_macro(sym);
-      else
-        skip_macro();
-      eq=0;
-      break;
-    case DOT_DS:  /* .DS directive */
-      str=get_nxt_word(PARSE_LINE_REST);
-      squeeze_str(str);
-      addr=get_expression(str,1);
-      pc=pc+addr;
-      break;
-    case DOT_INCBIN: /* .INCBIN */
-      str=get_nxt_word(PARSE_NEXT_LINE);
-      if (str[0]=='"') {
-        str++;
-        str[strlen(str)-1]=0;
-      }
-      incbin(str);
-      break;
-    case DOT_REPT: /* .REPT */
-      do_rept(sym);
-      break;
-    case DOT_ENDR:  /* .ENDR */
-      error("No matching .REPT definition for .ENDR",1);
-      break;
-    case DOT_WARN: /* .WARN */
-      str=get_nxt_word(PARSE_NEXT_LINE);
-      error(str,0);
-      break;
-    case DOT_DC: /* .DC */
-      str=get_nxt_word(PARSE_NEXT_LINE);
-      addr=get_expression(str,1);
 
-      str=get_nxt_word(PARSE_NEXT_LINE);
-      stor=get_expression(str,1);
-
-      for(i=0;i<addr;i++) {
-        if ((verbose)&&(pass)&&(!(i&3))) {
-          if (i)
-            aprintf("%s\n",outline);
-          outline[0]=0;
-          print_pc();
-        }
-        if (pass)
-          put_byte(stor);
-        else
-          pc++;
-      }
-      if ((verbose)&&(pass))
-        aprintf("%s\n",outline);
-      outline[0]=0;
-      break;
-    case DOT_BANK: { /* .BANK */
-      unsigned short symbolID=0;
-      int p1,p2;
-
-      p1=p2=-1;
-      str=get_nxt_word(PARSE_PEEK_LINE_REST);
-      if (strlen(str)) {
-        squeeze_str(str);
-        if (str[0]==',')
-          p2=-2;
-
-        get_nxt_word(PARSE_REPLACE_COMMAS);
-        str=get_nxt_word(PARSE_NEXT_WORD);
-        if (strlen(str)) {
-          squeeze_str(str);
-          if (strlen(str)) {
-            p1=get_expression(str,1);
-          }
-          str=get_nxt_word(PARSE_NEXT_WORD);
-          if (strlen(str)) {
-            squeeze_str(str);
-            if (strlen(str)) {
-              p2=get_expression(str,1);
-            }
-          }
-          if (p2>0) {
-            bankID=p1;
-            symbolID=p2;
-          } else if (p2==-1) {
-            bankID=symbolID=p1;
-          } else {
-            bankID++;
-            symbolID=p1;
-          }
-        }
-      } else {
-        bankID++;
-        symbolID=bankID;
-      }
-      if (pass) {
-        if (bankID>=0) {
-          if (verbose & 1) {
-            char buf[256];
-            sprintf(buf,"Using bank %d,%d\n",bankID,symbolID);
-            error(buf,0);
-          }
-          activeBank=get_bank(bankID,symbolID);
-        }
-      } else if (bankID>=0) {
-        activeBank=get_bank(bankID,symbolID);
-      }
-      /* Skip for now... */
-      do {
-        str=get_nxt_word(PARSE_NEXT_WORD);
-      } while(strlen(str));
-      break;
-    }
-    case DOT_ALIGN: { /* .ALIGN */
-        int ok = 0;
-        if (!init_pc)
-            error("No inital address specified.", 1);
-        str = get_nxt_word(PARSE_LINE_REST);
-        squeeze_str(str);
-        if (strlen(str) == 0) {
-            error("Need to specify an alignment boundary", 1);
-        }
-        init_pc = 1;
-        addr = get_expression(str, 1);
-        /* Valid boundary values are 2^n (n=0-15) */
-        for (i = 0; i < 16; ++i) {
-            if ((1 << i) == (unsigned short)addr) {
-                pc = (pc + addr - 1) & (0x10000 - addr);
-                ok = 1;
-                break;
-            }
-        }
-        if (ok == 0) {
-            error("Align boundary needs to be power of 2", 1);
-        }
-        break;
-    }
-    case DOT_REGION_NAME: /* .NAME to give a name to a memory area*/
+    switch (sym->tp)
     {
-        str = get_nxt_word(PARSE_NEXT_LINE);
-        if (str[0] == '"') {
-            str++;
-            str[strlen(str) - 1] = 0;
-        }
-        if (pass == 1)
+        case OPCODE:  /* opcode */
         {
-            saveNamedMemoryRegion(pc, str);
-        }
-        break;
-    }
-    default:
-      error("Illegal directive.",1);
-      break;
-    }
-    break;
-  case MACRON: /* MACRO */
-    mc=get_macro_call(sym->name);
-    if (!mc)
-      error("Missing entry in macro table",1);
+            if (!init_pc)
+                error("No initial address specified.", 1);
+            if ((verbose) && (pass)) {
+                currentPC = print_pc();
+            }
 
-    macro_param(mc,str);
-    mc->nxt=invoked;
-    invoked=mc;
-    mc->orig->times++;
-    break;
-  case MACROL: /* MACRO label/equate/tequate */
-  case MACROQ:
-    if (!pass) {
-      if (eq==1) {
-        snprintf(buf,80,"Equate '%s' defined multiple times",sym->name);
-        error(buf,1);
-      }
-      sym->num++;
-    }
-    if (eq) {
-      if (sym->tp!=MACROQ) {
-        snprintf(buf,80,"Symbol '%s' is not a transitory equate!",sym->name);
-        error(buf,1);
-      }
-      str=get_nxt_word(PARSE_LINE_REST);
-      if (eq==2) {
-        squeeze_str(str);
-        addr=get_address(str);
-        sym->addr=addr;
-        sym->bank=activeBank->sym_id;
-      }
-      eq=0;
-    } else {
-      /* Update macro shadow definition */
-      if (sym->macroShadow) {
-        symbol *update;
-        macro_call *hold=invoked;
-        invoked=NULL;
-        update=findsym(sym->macroShadow);
-        invoked=hold;
-        if (update) {
-          update->addr=pc;
-        }
-        defUnk(sym->name,pc);
-      }
-    }
-    break;
-  case LABEL:  /* labels and equates */
-  case EQUATE:
-    if (!pass) {
-      if (eq==1) {  /* was 2? probably a typo - mws */
-        snprintf(buf,80,"Symbol '%s' is not a transitory equate!",sym->name);
-        error(buf,1);
-      } else {
-        if (sym->addr>255) {
-          snprintf(buf,80,"Symbol '%s' already defined!",sym->name);
-          error(buf,1);
-        }
-      }
-    } else {
-      // 2nd pass
-      if ((sym->tp==LABEL)&&(sym->name)&&(sym->name[0]!='?'))
-        if (!strchr(sym->name,'?'))
-          opt.MAEname=sym->name;
-    }
-    if (eq==1) {
-      // Equate (=)
-      if (sym->tp==LABEL) {
-        snprintf(buf,80,"Cannot use label '%s' as an equate",sym->name);
-        error(buf,1);
-      }
-      str=get_nxt_word(PARSE_LINE_REST);
-      if (sym->addr==0xffff) {  /* allow forward equate references */
-        squeeze_str(str);
-        addr=get_address(str);
-        sym->addr=addr;
-        sym->bank=activeBank->sym_id;
-        defUnk(sym->name,addr);
-      }
-      eq=0;
-    }
-    break;
-  case TEQUATE: /* transitory equates */
-    if (!pass) {
-      if (eq==2) {
-        str=get_nxt_word(PARSE_LINE_REST);
+            if (sym->addr >= LEGAL_OPS && !opt.ill)
+                error("6502 `illegal' opcode used without `.OPT ILL' or -u", 1);
 
-        /* even in first pass allow .= updates for .IFs */
-        squeeze_str(str);
-        addr=get_address(str);
-        sym->addr=addr;
-        sym->bank=activeBank->sym_id;
-        defUnk(sym->name,addr);
+            if (num_args[sym->addr]) {
+                str = get_nxt_word(PARSE_LINE_REST);
+                squeeze_str(str);
+                parse_operand(sym, str);
+            }
+            else {
+                get_single(sym);
+            }
+            if ((verbose) && (pass)) {
+                if (lastSymbol && ((lastSymbol->addr & 0xFFFF) == currentPC) && lastSymbol->lineNr != fin->line) {
+                    /* Write the original/unmodified symbol name to the outline */
+                    sprintf(buf, " %s ", lastSymbol->orig);
+                    strcat(outline, buf);
+                }
+                while (strlen(outline) < 16)
+                    strcat(outline, " ");
+                line = get_nxt_word(PARSE_CURRENT_LINE);
+                aprintf("%s%s\n", outline, line);
+                /*      if (invoked) {
+            printf("\t\t[inside %s]\n",invoked->orig->name);
+                } else {
+            printf("\n");
+                }  */
+            }
+            break;
+        }
+        case DIRECT:  /* system def */
+        {
+            switch (sym->addr) 
+            {
+                case DOT_BYTE:  /* .BYTE */
+                case DOT_CBYTE:  /* .CBYTE */
+                case DOT_SBYTE:  /* .SBYTE */
+                    do_xbyte(sym->addr);
+                    break;
+                case DOT_DBYTE:  /* .DBYTE */
+                    do_xword(sym->addr);
+                    break;
+                case DOT_ELSE: /* .ELSE */
+                    skip_if();
+                    break;
+                case DOT_END:  /* .END */
+                    break;
+                case DOT_ENDIF: /* .ENDIF */
+                    --dotIfLevel;
+                    break;
+                case DOT_ERROR: /* .ERROR */
+                    str = get_nxt_word(PARSE_NEXT_LINE);
+                    error(str, 1);
+                    break;
+                case DOT_FLOAT: /* .FLOAT */
+                    do_float();
+                    break;
+                case DOT_IF: /* .IF */
+                    ++dotIfLevel;
+                    clearDoneIfPartIndicators(dotIfLevel);
 
-        eq=0;
-      } else {
-        snprintf(buf,80,"Use .= to assign '%s' new a value.",sym->name);
-        error(buf,1);
-      }
-    } else {
-      if (eq==2) {   /* allow .= updates */
-        str=get_nxt_word(PARSE_LINE_REST);
-        squeeze_str(str);
-        addr=get_address(str);
-        sym->addr=addr;
-        sym->bank=activeBank->sym_id;
-        defUnk(sym->name,addr);
-        eq=0;
-      }
-    }
-    break;
-  default:
-    if (!pass) {
-      snprintf(buf,80,"Symbol '%s' already defined!",sym->name);
-      error(buf,1);
-    }
-  }
-  return 1;
+                    str = get_nxt_word(PARSE_LINE_REST);
+                    squeeze_str(str);
+                    eq = 0;
+                    addr = get_expression(str, 1);
+                    if (addr)
+                        doneIfPart[dotIfLevel] = 1;
+                    else
+                        skip_if();      // Skip until .ELSE, .ELSEIF or .ENDIF
+                    break;
+                case DOT_INCLUDE:  /* .INCLUDE */
+                    str = get_nxt_word(PARSE_NEXT_LINE);
+                    if (str[0] == '"') {
+                        str++;
+                        str[strlen(str) - 1] = 0;
+                    }
+                    open_file(str);
+                    break;
+                case DOT_LOCAL: /* .LOCAL */
+                    local++;
+                    if (local > 62)
+                        error("Over 62 local regions defined, will not compile on MAC/65.", 0);
+                    break;
+                case DOT_OPT: { /* .OPT */
+                    int i, len, negated = 0;
+                    do {
+                        str = get_nxt_word(PARSE_NEXT_WORD);
+                        len = (int)strlen(str);
+                        for (i = 0; i < len; i++) {
+                            str[i] = TOUPPER(str[i]);
+                        }
+                        if (!strcmp(str, "NO")) {
+                            negated = 1;
+                        }
+                        else if (!strcmp(str, "OBJ")) {
+                            opt.obj = !negated;
+                        }
+                        else if (!strcmp(str, "ERR")) {
+                            opt.warn = !negated;
+                        }
+                        else if (!strcmp(str, "LIST")) {
+                            verbose = !negated;
+                        }
+                        else if (!strcmp(str, "ILL")) {
+                            opt.ill = !negated;
+                            error(".OPT ILL encountered (code would not compile on MAC/65)", 0);
+                        }
+                        else if (!strcmp(str, "SYMDUMP"))
+                        {
+                            opt.symbolDumpOptions = negated;
+                        }
+                        else if (strlen(str)) {
+                            error("Unknown .OPT directive.", 0);
+                        }
+                    } while (strlen(str));
+                    break;
+                }
+                case DOT_SET: /* .SET */
+                    get_nxt_word(PARSE_REPLACE_COMMAS);
+                    str = get_nxt_word(PARSE_NEXT_WORD);
+                    if (!str)
+                        squeeze_str(str);
+                    if (strlen(str)) {
+                        int opt;
+                        sscanf(str, "%d", &opt);
+                        /* only honor option 6 at the moment... */
+                        if (opt == 6) {
+                            int ofs;
+                            str = get_nxt_word(PARSE_LINE_REST);
+                            squeeze_str(str);
+                            if (strlen(str)) {
+                                if (pass) {
+                                    ofs = get_signed_expression(str, 1);
+                                }
+                                else {
+                                    ofs = 0;
+                                }
+                                if ((ofs >= -65535) && (ofs <= 65535)) {
+                                    activeBank->offset = ofs;
+                                }
+                                else {
+                                    error("Illegal .SET 6 offset ignored", 0);
+                                }
+                            }
+                        }
+                        else {
+                            error("Unhandled .SET ignored", 0);
+                            str = get_nxt_word(PARSE_LINE_REST);
+                        }
+                    }
+                    break;
+                case DOT_PAGE: /* .PAGE */
+                case DOT_TAB: /* .TAB */
+                case DOT_TITLE: /* .TITLE */
+                    do {
+                        str = get_nxt_word(PARSE_NEXT_WORD);
+                    } while (strlen(str));
+                    break;
+                case DOT_WORD: /* .WORD */
+                    do_xword(sym->addr);
+                    break;
+                case DOT_STAR: /* '*' operator */
+                {
+                    // * = expression ["Region name"]
+                    // * = * + expression ["Region name"]
+                    if ((!eq) || (eq == 2)) {
+                        error("Malformed * operator.", 1);
+                    }
+                    if ((verbose) && (pass))
+                        aprintf("\n");
+                    eq = 0;
+                    str = get_nxt_word(PARSE_LINE_REST);
+                    char* lineDup = str ? STRDUP(str) : NULL;           // Duplicate the line so that we can look for memory region name in it
+                    squeeze_str(str);
+                    // Check if there is a " somewhere.  Can't be part of the expression, so must be the region name
+                    char* regionName = strchr(str, '"');
+                    if (regionName) {
+                        *regionName = 0;        // " to 0
+                        ++regionName;
+                    }
+
+                    if (str[0] == '*') {
+                        // Relative adjustment
+                        if (!init_pc)
+                            error("No inital address specified.", 1);
+                        if (str[1] != '+')
+                            error("Illegal relative adjustment.", 1);
+                        str[0] = '0';
+                        addr = get_expression(str, 1);
+                        pc = pc + addr;
+                    }
+                    else {            /* Absolute value */
+                        init_pc = 1;
+                        addr = get_expression(str, 1);
+                        pc = addr;
+                    }
+                    if (regionName && lineDup)
+                    {
+                        regionName = strchr(lineDup, '"');
+                        if (regionName) {
+                            *regionName = 0;
+                            ++regionName;
+                        }
+                        // Find the last " in the region name
+                        char* lastInvComma = strrchr(regionName, '"');
+                        if (lastInvComma) *lastInvComma = 0;
+                        saveNamedMemoryRegion(pc, regionName);
+                    }
+                    break;
+                }
+                case DOT_ENDM:  /* .ENDM */
+                    error("No matching .MACRO definition for .ENDM", 1);
+                    break;
+                case DOT_MACRO:  /* .MACRO definition */
+                    if (!pass)
+                        create_macro(sym);
+                    else
+                        skip_macro();
+                    eq = 0;
+                    break;
+                case DOT_DS:  /* .DS directive */
+                    str = get_nxt_word(PARSE_LINE_REST);
+                    squeeze_str(str);
+                    addr = get_expression(str, 1);
+                    pc = pc + addr;
+                    break;
+                case DOT_INCBIN: /* .INCBIN */
+                    str = get_nxt_word(PARSE_NEXT_LINE);
+                    if (str[0] == '"') {
+                        str++;
+                        str[strlen(str) - 1] = 0;
+                    }
+                    incbin(str);
+                    break;
+                case DOT_REPT: /* .REPT */
+                    do_rept(sym);
+                    break;
+                case DOT_ENDR:  /* .ENDR */
+                    error("No matching .REPT definition for .ENDR", 1);
+                    break;
+                case DOT_WARN: /* .WARN */
+                    str = get_nxt_word(PARSE_NEXT_LINE);
+                    error(str, 0);
+                    break;
+                case DOT_DC: /* .DC */
+                    str = get_nxt_word(PARSE_NEXT_LINE);
+                    addr = get_expression(str, 1);
+
+                    str = get_nxt_word(PARSE_NEXT_LINE);
+                    stor = get_expression(str, 1);
+
+                    for (i = 0; i < addr; i++) {
+                        if ((verbose) && (pass) && (!(i & 3))) {
+                            if (i)
+                                aprintf("%s\n", outline);
+                            outline[0] = 0;
+                            print_pc();
+                        }
+                        if (pass)
+                            put_byte(stor);
+                        else
+                            pc++;
+                    }
+                    if ((verbose) && (pass))
+                        aprintf("%s\n", outline);
+                    outline[0] = 0;
+                    break;
+                case DOT_BANK: { /* .BANK */
+                    unsigned short symbolID = 0;
+                    int p1, p2;
+
+                    p1 = p2 = -1;
+                    str = get_nxt_word(PARSE_PEEK_LINE_REST);
+                    if (strlen(str)) {
+                        squeeze_str(str);
+                        if (str[0] == ',')
+                            p2 = -2;
+
+                        get_nxt_word(PARSE_REPLACE_COMMAS);
+                        str = get_nxt_word(PARSE_NEXT_WORD);
+                        if (strlen(str)) {
+                            squeeze_str(str);
+                            if (strlen(str)) {
+                                p1 = get_expression(str, 1);
+                            }
+                            str = get_nxt_word(PARSE_NEXT_WORD);
+                            if (strlen(str)) {
+                                squeeze_str(str);
+                                if (strlen(str)) {
+                                    p2 = get_expression(str, 1);
+                                }
+                            }
+                            if (p2 > 0) {
+                                bankID = p1;
+                                symbolID = p2;
+                            }
+                            else if (p2 == -1) {
+                                bankID = symbolID = p1;
+                            }
+                            else {
+                                bankID++;
+                                symbolID = p1;
+                            }
+                        }
+                    }
+                    else {
+                        bankID++;
+                        symbolID = bankID;
+                    }
+                    if (pass) {
+                        if (bankID >= 0) {
+                            if (verbose & 1) {
+                                char buf[256];
+                                sprintf(buf, "Using bank %d,%d\n", bankID, symbolID);
+                                error(buf, 0);
+                            }
+                            activeBank = get_bank(bankID, symbolID);
+                        }
+                    }
+                    else if (bankID >= 0) {
+                        activeBank = get_bank(bankID, symbolID);
+                    }
+                    /* Skip for now... */
+                    do {
+                        str = get_nxt_word(PARSE_NEXT_WORD);
+                    } while (strlen(str));
+                    break;
+                }
+                case DOT_ALIGN: { /* .ALIGN */
+                    int ok = 0;
+                    if (!init_pc)
+                        error("No inital address specified.", 1);
+                    str = get_nxt_word(PARSE_LINE_REST);
+                    squeeze_str(str);
+                    if (strlen(str) == 0) {
+                        error("Need to specify an alignment boundary", 1);
+                    }
+                    init_pc = 1;
+                    addr = get_expression(str, 1);
+                    /* Valid boundary values are 2^n (n=0-15) */
+                    for (i = 0; i < 16; ++i) {
+                        if ((1 << i) == (unsigned short)addr) {
+                            pc = (pc + addr - 1) & (0x10000 - addr);
+                            ok = 1;
+                            break;
+                        }
+                    }
+                    if (ok == 0) {
+                        error("Align boundary needs to be power of 2", 1);
+                    }
+                    break;
+                }
+                case DOT_REGION_NAME: /* .NAME to give a name to a memory area*/
+                {
+                    str = get_nxt_word(PARSE_NEXT_LINE);
+                    if (str[0] == '"') {
+                        str++;
+                        str[strlen(str) - 1] = 0;
+                    }
+                    if (pass == 1)
+                    {
+                        saveNamedMemoryRegion(pc, str);
+                    }
+                    break;
+                }
+                case DOT_ELSEIF:
+                {
+                    if (doneIfPart[dotIfLevel])
+                        skip_if();
+                    else
+                    {
+                        str = get_nxt_word(PARSE_LINE_REST);
+                        squeeze_str(str);
+                        eq = 0;
+                        addr = get_expression(str, 1);
+                        if (addr)
+                            doneIfPart[dotIfLevel] = 1;
+                        else
+                            skip_if();      // Skip until .ELSE, .ELSEIF or .ENDIF
+                    }
+                    break;
+                }
+                default:
+                    error("Illegal directive.", 1);
+                    break;
+            }
+            break;
+        }
+        case MACRON: /* MACRO */
+        {
+            mc = get_macro_call(sym->name);
+            if (!mc)
+                error("Missing entry in macro table", 1);
+
+            macro_param(mc, str);
+            mc->nxt = invoked;
+            invoked = mc;
+            mc->orig->times++;
+            break;
+        }
+        case MACROL: /* MACRO label/equate/tequate */
+        case MACROQ:
+        {
+            if (!pass) {
+                if (eq == 1) {
+                    snprintf(buf, 80, "Equate '%s' defined multiple times", sym->name);
+                    error(buf, 1);
+                }
+                sym->num++;
+            }
+            if (eq) {
+                if (sym->tp != MACROQ) {
+                    snprintf(buf, 80, "Symbol '%s' is not a transitory equate!", sym->name);
+                    error(buf, 1);
+                }
+                str = get_nxt_word(PARSE_LINE_REST);
+                if (eq == 2) {
+                    squeeze_str(str);
+                    addr = get_address(str);
+                    sym->addr = addr;
+                    sym->bank = activeBank->sym_id;
+                }
+                eq = 0;
+            }
+            else {
+                /* Update macro shadow definition */
+                if (sym->macroShadow) {
+                    symbol* update;
+                    macro_call* hold = invoked;
+                    invoked = NULL;
+                    update = findsym(sym->macroShadow);
+                    invoked = hold;
+                    if (update) {
+                        update->addr = pc;
+                    }
+                    defUnk(sym->name, pc);
+                }
+            }
+            break;
+        }
+		case LABEL:  /* labels and equates */
+		case EQUATE:
+        {
+            if (!pass) {
+                if (eq == 1) {  /* was 2? probably a typo - mws */
+                    snprintf(buf, 80, "Symbol '%s' is not a transitory equate!", sym->name);
+                    error(buf, 1);
+                }
+                else {
+                    if (sym->addr > 255) {
+                        snprintf(buf, 80, "Symbol '%s' already defined!", sym->name);
+                        error(buf, 1);
+                    }
+                }
+            }
+            else {
+                // 2nd pass
+                if ((sym->tp == LABEL) && (sym->name) && (sym->name[0] != '?'))
+                    if (!strchr(sym->name, '?'))
+                        opt.MAEname = sym->name;
+            }
+            if (eq == 1) {
+                // Equate (=)
+                if (sym->tp == LABEL) {
+                    snprintf(buf, 80, "Cannot use label '%s' as an equate", sym->name);
+                    error(buf, 1);
+                }
+                str = get_nxt_word(PARSE_LINE_REST);
+                if (sym->addr == 0xffff) {  /* allow forward equate references */
+                    squeeze_str(str);
+                    addr = get_address(str);
+                    sym->addr = addr;
+                    sym->bank = activeBank->sym_id;
+                    defUnk(sym->name, addr);
+                }
+                eq = 0;
+            }
+            break;
+        }
+		case TEQUATE: /* transitory equates */
+        {
+            if (!pass) {
+                if (eq == 2) {
+                    str = get_nxt_word(PARSE_LINE_REST);
+
+                    /* even in first pass allow .= updates for .IFs */
+                    squeeze_str(str);
+                    addr = get_address(str);
+                    sym->addr = addr;
+                    sym->bank = activeBank->sym_id;
+                    defUnk(sym->name, addr);
+
+                    eq = 0;
+                }
+                else {
+                    snprintf(buf, 80, "Use .= to assign '%s' new a value.", sym->name);
+                    error(buf, 1);
+                }
+            }
+            else {
+                if (eq == 2) {   /* allow .= updates */
+                    str = get_nxt_word(PARSE_LINE_REST);
+                    squeeze_str(str);
+                    addr = get_address(str);
+                    sym->addr = addr;
+                    sym->bank = activeBank->sym_id;
+                    defUnk(sym->name, addr);
+                    eq = 0;
+                }
+            }
+            break;
+        }
+		default:
+			if (!pass) {
+				snprintf(buf, 80, "Symbol '%s' already defined!", sym->name);
+				error(buf, 1);
+			}
+	}
+	return 1;
 }
 /*=========================================================================*
  * function do_cmd(char *buf)

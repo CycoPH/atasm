@@ -1,11 +1,11 @@
-# ATasm v1.19
+# ATasm v1.20
 ### A mostly Mac/65 compatible 6502 cross-assembler 
 Copyright (c) 1998-2021 Mark Schmelzenbach, modified by Peter Hinz (2022)
 
 *ATasm is a 6502 command-line cross-assembler that is compatible with the original Mac/65 macroassembler released by OSS software. Code development can now be performed using "modern" editors and compiles with lightning speed.*
 
 ATasm Features
-=============
+==============
 * ATasm produces Atari native binary load object files or can optionally target .XFD/.ATR disk images and the machine state files produced by the Atari800Win emulator (version 2.5c or greater),the Atari800 emulator (version 0.9.8g or greater) or the Atari++ emulator (version 1.24 or greater)
 * Conditional code generation, and code block repetition
 * Rich macro support, compatible with existing Mac/65 code libraries
@@ -27,7 +27,6 @@ All source code and the Windows binary are included in the package.
 2.4 Operators and expressions.9
    
 ### Chapter 3  Compiler directives, Conditional assembly, and Macros
-3.1 Overview
 3.2   *=\<addr>
 3.3   .DS \<word>
 3.4   .DC \<word> \<byte>
@@ -35,7 +34,7 @@ All source code and the Windows binary are included in the package.
 3.6   .BYTE [+\<byte>],\<bytes|string|char>
 3.7   .DBYTE \<words>
 3.8   .FLOAT \<float>
-3.9   .IF \<expression>,.ELSE,.ENDIF
+3.9   .IF \<expression>,.ELSEIF,.ELSE,.ENDIF
 3.10   .INCLUDE \<filename>
 3.11  .INCBIN \<filename>
 3.12  .ERROR \<string>
@@ -47,7 +46,7 @@ All source code and the Windows binary are included in the package.
 3.18 .SET 6, \<expression>
 3.19 .BANK [\<word>,\<word>]
 3.20 .ALIGN boundary
-3.21 .REGION "NAME"
+3.21 .REGION \<string>
   
 ### Chapter 4: Incompatibilities with Mac/65
 ### Chapter 5: A brief digression on writing ATasm
@@ -372,11 +371,11 @@ modifiers that are simply ignored (.END,.PAGE,.TAB,.TITLE), or are
 only partially implemented (.SET). For the most part, the important
 directives that affect code generation are intact. Some new
 directives have been added such as .DS, .INCBIN, .WARN, .BANK, and
-.REPT/.ENDR. In addition, non-standard .OPT directives have been 
+.REPT/.ENDR. In addition, non-standard .OPT directives have been
 added (see section 3.14)
 
 In the following sections the following notation is used:
-```
+
 	<addr> denotes an unsigned word used as a valid Atari address
 	<float> denotes a floating point number
 	<word> denotes a word value
@@ -386,74 +385,86 @@ In the following sections the following notation is used:
 	<label> denotes a legal ATasm label
 	<macro name> denotes a legal ATasm label used as a macro name
 	<expression> denotes a legal ATasm expression
-	<filename> denotes a system legal filename, optionally
-		enclosed in double quotes
-```
+	<filename> denotes a system legal filename, optionally enclosed in double quotes
+
 Also, symbols enclosed in brackets '[' ']' are optional.
-	
-### 3.2  *=\<addr\> ["NAME"]
+
+### 3.2  \*=\<addr\> ["NAME"]
 This sets the origin address for assembly and optionally names the memory region.
-	
+
+	Ex:
+	* = $2000 "boot"
+	* = $3000 "sprites"
+	* = $4000 "music"
+	This defines 3 memory areas and gives each a name. The names are dumped at after the assemble.
+
 ### 3.3  .DS \<word\>
-```
-	*=*+<word>
-	(Define Storage)  This reserves an area of memory at the 
-	current address equal to size <word>. 
-	This is equivalent to the expression *=*+<word>
-```
+(Define Storage) This reserves an area of memory at the current address equal
+to size \<word>. This is equivalent to the expression \*=\*+\<word>
+
+	Ex:
+	label .DS 10
+	This allocates 10 bytes of storage and assigned the "label" to point to the first byte.
 
 ### 3.4  .DC \<word> \<byte>
-	(Define Constant storage)  This fills an area of memory at 
-	the current address equal to size <word> with the byte value <byte>
-	
+(Define Constant storage)  This fills an area of memory at the current address
+equal to size \<word> with the byte value \<byte>
+
+	Ex:
+	.DC 10 $FF
+	will generate the following byte sequence:
+	FF FF FF FF FF FF FF FF FF FF
+
 ### 3.5  \<label> = \<expression> or \<label> .= \<expression>
-	Assigns the specified label to a given value. 
-	The .= directive allows a label to be assigned different values during 
-	the assembly process. 
-	See Section 3.17 for an example of using this.
+Assigns the specified label to a given value. The .= directive allows a label
+to be assigned different values during the assembly process.
+See Section 3.17 for an example of using this.
 
 ### 3.6  .BYTE [+\<byte>],\<bytes|string|char>
-	Store byte values at the current address. If the first value is prefaced 
-	by a '+', then that value will be used as a constant that will be added 
-	to all the remaining bytes on that line.
+Store byte values at the current address. If the first value is prefaced
+by a '+', then that value will be used as a constant that will be added
+to all the remaining bytes on that line.
+.BYTE
+.SBYTE
+.CBYTE
 
 	Ex:
 	  .BYTE +$80,$10,20,"Testing",'a
 	will generate the following byte sequence:
 	  90 94 D4 E5 F3 F4 E9 EE E7 E1
 
-	  .SBYTE [+<byte>],<bytes|string|char>
-	This is the same as the .BYTE directive, but all the byte values will be 
-	converted to Atari screen codes instead of ATASCII values. 
-	This conversion is applied prior to the constant addition.
+.SBYTE [+<byte>],<bytes|string|char>
+This is the same as the .BYTE directive, but all the byte values will be
+converted to Atari screen codes instead of ATASCII values.
+This conversion is applied prior to the constant addition.
 
 	Ex:
 	  .SBYTE +$80,$10,20,"Testing",'a
 	will generate the follow byte sequence:
 	  90 94 D4 B4 F3 F4 E9 EE E7 E1
 
-	  .CBYTE [+<byte>],<bytes|string|char>
-	This is the same as the .BYTE directive, except that the final byte value 
-	on the line will be EOR'd with $80. This format is often used by print 
-	routines that use the high-bit of a character to indicate the end of 
-	a string.
+.CBYTE [+<byte>],<bytes|string|char>
+This is the same as the .BYTE directive, except that the final byte value 
+on the line will be EOR'd with $80. This format is often used by print 
+routines that use the high-bit of a character to indicate the end of 
+a string.
 
 	Ex:
 	  .CBYTE +$80,$10,20,"Testing",'a
 	will generate the following byte sequence:
 	  90 94 D4 E5 F3 F4 E9 EE E7 61
-	  
+
 ### 3.7  .DBYTE \<words>
-	Stores words in memory at the current memory address in MSB/LSB format.
-	
+Stores words in memory at the current memory address in MSB/LSB format.
+.DBYTE
+
 	Ex:
 	  .DBYTE $1234,-1,1
 	will generate:
 	  12 34 FF FF 00 01
 
-	  .WORD <words>
-    Stores words in memory at the current memory address in native 
-	format (LSB/MSB).
+.WORD <words>
+Stores words in memory at the current memory address in native format (LSB/MSB).
 
 	Ex:
 	  .WORD $1234,-1,1
@@ -461,24 +472,32 @@ This sets the origin address for assembly and optionally names the memory region
 	  34 12 FF FF 01 00
 	  
 ### 3.8  .FLOAT \<float>
-	Stores a 6 byte BCD floating point number in the format used in the
-	Atari OS ROM.
+Stores a 6 byte BCD floating point number in the format used in the	Atari OS ROM.
 
 	Ex:
 	  .FLOAT 3.14156295,-2.718281828
 	will generate:
 	  40 03 14 15 62 95 C0 27 18 28 18 28
-	  
-### 3.9  .IF \<expression>,.ELSE,.ENDIF
+
+### 3.9  .IF \<expression>,.ELSEIF \<expression>,.ELSE,.ENDIF
 These statements form the basis for ATasm's conditional assembly
 routines. They allow for code blocks to be assembled or skipped based on
 the value of an expression. The expression following the .IF directive
 will be evaluated and if true (or non-zero) the statements following
-the .IF up to the matching .ELSE or .ENDIF will be assembled. Otherwise, the
-code block will be skipped. The .ELSE block is optional and only needed if
-you want one block of code to be assembled when the expression is true and
-another to be assembled if the expression is false. The end of the
+the .IF up to the matching .ELSEIF, .ELSE or .ENDIF will be assembled.
+Otherwise, the code block will be skipped. The .ELSE block is optional and
+only needed if you want one block of code to be assembled when the expression
+is true and another to be assembled if the expression is false. The end of the
 conditional assembly block must be denoted with the .ENDIF directive.
+
+	Ex:
+	  .IF TARGET=1
+	  	....
+	  .ELSEIF TARGET=2
+	  	....
+	  .ELSE
+	    ....
+	  .ENDIF
 
 ### 3.10  .INCLUDE \<filename>
 Include additional files into the assembly. Using Mac/65, .INCLUDEs
@@ -750,7 +769,7 @@ for something like page alignment:
 	.ALIGN $100
 ```
 
-### 3.21 .NAME - naming a memory region
+### 3.21 .NAME <string>
 This directive can be used to give a memory region a name. This is very useful in the Visual Studio Code extension that interfaces with ATasm.
 ```
 	* = $2000 "Booting"
@@ -763,7 +782,7 @@ i.e.
 Memory Map
 ----------
 $2000-$20AB Booting
-$2100-$21ff	Sprite data
+$2100-$21FF	Sprite data
 ```
 
 ## Chapter 4: Incompatibilities with Mac/65

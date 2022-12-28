@@ -1,5 +1,5 @@
 ﻿============================================================================
-ATasm v1.18 ("Evergreen Release")
+ATasm v1.20
 A mostly Mac/65 compatible 6502 cross-assembler
 
 Copyright (c) 1998-2022 Mark Schmelzenbach
@@ -28,7 +28,7 @@ email: mschmelzenbach@acm.org or cerebusrc@gmail.com
    3.6   .BYTE [+<byte>],<bytes|string|char>
    3.7   .DBYTE <words>
    3.8   .FLOAT <float>
-   3.9   .IF <expression>,.ELSE,.ENDIF
+   3.9   .IF <expression>,.ELSEIF <expression>,.ELSE,.ENDIF
    3.10  .INCLUDE <filename>
    3.11  .INCBIN <filename>
    3.12  .ERROR <string>
@@ -226,6 +226,8 @@ Version 1.19 - Modified the * program counter command to also name a memory regi
 				Added -eval command line option to only do the compile and NOT
 				write anything to disc.
 				Slight warning and error format change to make it external parsable.
+Version 1.20 - Added the .ELSEIF directive to build easier .IF .ELSEIF .ELSE .ENDIF 
+				control blocks.
 
 ============================================================================
 Chapter 1: ATasm
@@ -278,6 +280,7 @@ following command line parameters:
 		-hv[clmL]: dumps constants/equates, labels and macro definition info
 					for VSCode plugin, c=constants, l=global labels, 
 					m=macros, L=all labels
+		-eval: only compile (no binary output)
 
 The assembly trace and symbol table dump will be sent to stdout. This can be
 piped to a file if desired.
@@ -601,12 +604,12 @@ In the following sections the following notation is used:
 	will generate:
 	  40 03 14 15 62 95 C0 27 18 28 18 28
 	  
-3.9  .IF <expression>,.ELSE,.ENDIF
+3.9  .IF <expression>,.ELSEIF <expression>.ELSE,.ENDIF
 	These statements form the basis for ATasm's conditional assembly 
 routines. They allow for code blocks to be assembled or skipped based on 
 the value of an expression. The expression following the .IF directive 
 will be evaluated and if true (or non-zero) the statements following 
-the .IF up to the matching .ELSE or .ENDIF will be assembled. Otherwise, the 
+the .IF up to the matching .ELSEIF, .ELSE or .ENDIF will be assembled. Otherwise, the 
 code block will be skipped. The .ELSE block is optional and only needed if 
 you want one block of code to be assembled when the expression is true and
 another to be assembled if the expression is false. The end of the
