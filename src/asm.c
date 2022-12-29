@@ -164,6 +164,11 @@
  *              Added -eval command line option to only do the compile and NOT
  *              write anything to disc.
  *              Slight warning and error format change to make it external parsable.
+ * 
+ *              RELEASE 1.20
+ * 29/12/22 ph  Added the .ELSEIF directive to build easier .IF .ELSEIF .ELSE .ENDIF 
+ *              control blocks.
+ * 
  *==========================================================================*
  * TODO
  *   indepth testing of .IF,.ELSE,.ENDIF (signal error on mismatches?)
@@ -176,6 +181,7 @@
  * COMPLETED TODO
  *   determine how to allow INITAD ($2e2) (10/08/2003 use .BANK directive)
  *   allow '.' within label names
+ *   .IF was fully tested and expanded to include .ELSEIF
  *
  * Bugs: see kill.asm
  *   ORA #16                              (fixed 12/18/98 mws)
@@ -1738,36 +1744,49 @@ int get_single(symbol *sym) {
 /*=========================================================================*
  * function incbin(char *fname)
  *
- * this includes a binary file
+ * This includes a binary file
  *=========================================================================*/
-int incbin(char *fname) {
-  FILE *in;
-  int b,v;
-  char final_fname[256];
+int incbin(char *fname) 
+{
+	FILE* in;
+	int b, v;
+	char final_fname[256];
 
-  in=fopen_include(includes, fname, 1, final_fname);
-  if (!in) {
-    error("Cannot open binary file",1);
-  }
-  track_filename(final_fname);
-  v=verbose;
-  verbose=0;
-  while((in)&&(!feof(in))) {
-    b=fgetc(in);
-    if (!feof(in)) {
-      if (pass)
-        put_byte(b);
-      else
-        pc++;
-    }
-  }
-  verbose=v;
-  fclose(in);
-  return 0;
+	in = fopen_include(includes, fname, 1, final_fname);
+	if (!in) 
+    {
+		error("Cannot open binary file", 1);
+	}
+	track_filename(final_fname);
+	v = verbose;
+	verbose = 0;
+	while ((in) && (!feof(in))) 
+    {
+		b = fgetc(in);
+		if (!feof(in)) 
+        {
+			if (pass)
+				put_byte(b);
+			else
+				pc++;
+		}
+	}
+	verbose = v;
+	fclose(in);
+	return 0;
 }
 
+/*=========================================================================*
+ * function clearDoneIfPartIndicators(int depth)
+ *
+ * Check if the .IF nesting is ok and clear all processed indicators for
+ * levels further up the stack.
+ *=========================================================================*/
 void clearDoneIfPartIndicators(int depth)
 {
+    if (depth >= MAX_IF_DEPTH)
+        error("Too many nested .IF blocks!", 1);
+
     for (; depth < MAX_IF_DEPTH; ++depth)
     {
         doneIfPart[depth] = 0;
@@ -1791,8 +1810,6 @@ int skip_if()
 		str = get_nxt_word(PARSE_SKIP);
 		if (!str)
 			error("Mismatched .IF/.ELSEIF/.ELSE/.ENDIF statements.", 1);
-
-        printf("%s ", str);
 
 		if (!STRCASECMP(str, ".IF"))
 			level++;

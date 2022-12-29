@@ -1410,6 +1410,8 @@ int do_rept(symbol* sym) {
 		}
 	}
 	rept = (macro_call*)malloc(sizeof(macro_call));
+	if (rept == NULL)
+		error("Error allocting memory for repeat.", 1);
 	rept->argc = 0;
 	rept->orig = m;
 	rept->cmd = NULL;

@@ -618,7 +618,7 @@ int save_A800state(char* fin, char* fout) {
 /*==========================================================================*/
 int templateType(char* fin) {
 	FILE* in;
-	int result;
+	size_t result;
 	char header_string[64];
 	char* buf;
 
@@ -633,7 +633,7 @@ int templateType(char* fin) {
 		error("Out of memory allocating room for state file.", 1);
 	}
 	while (!feof(in)) {
-		result = (int)fread(buf, 1, 8191, in);
+		result = fread(buf, 1, 8191, in);
 		buf[result] = 0;
 		if (strstr(buf, "+RAM::Page")) {
 			free(buf);

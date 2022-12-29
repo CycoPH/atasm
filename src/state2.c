@@ -115,34 +115,34 @@ int read_page(FILE *in, char *buf, unsigned char *page) {
  *
  * merge compiled memory onto snapshot state
  *=========================================================================*/
-int merge_page(int pageNum, unsigned char *page) {
-  unsigned char *scan, *end;
-  int a,b,i,walk,mwalk;
-  scan=activeBank->bitmap;
+int merge_page(int pageNum, unsigned char* page) {
+	unsigned char* scan, * end;
+	int a, b, i, walk, mwalk;
+	scan = activeBank->bitmap;
 
-  if (pageNum>255)
-    return 0;
+	if (pageNum > 255)
+		return 0;
 
-  /* Scan one page at a time */
-  scan+=pageNum*32;
-  end=scan+32;
-  walk=0;
-  mwalk=pageNum*256;
+	/* Scan one page at a time */
+	scan += pageNum * 32;
+	end = scan + 32;
+	walk = 0;
+	mwalk = pageNum * 256;
 
-  while(scan!=end) {
-    a=*scan;
-    b=128;
-    for(i=0;i<8;i++) {
-      if (a&b) {
-        page[walk]=activeBank->memmap[mwalk];
-      }
-      b=b>>1;
-      walk++;
-      mwalk++;
-    }
-    scan++;
-  }
-  return 1;
+	while (scan != end) {
+		a = *scan;
+		b = 128;
+		for (i = 0; i < 8; i++) {
+			if (a & b) {
+				page[walk] = activeBank->memmap[mwalk];
+			}
+			b = b >> 1;
+			walk++;
+			mwalk++;
+		}
+		scan++;
+	}
+	return 1;
 }
 
 /*=========================================================================*
@@ -151,85 +151,90 @@ int merge_page(int pageNum, unsigned char *page) {
  *
  * this functions creates an Atari++ snapshot based on a snapshot template
  *=========================================================================*/
-int save_snapshot(char *fin, char *fout) {
-  FILE *in, *out;
-  char *buf;
-  unsigned char *page;
-  int pageNum;
-  int okay;
+int save_snapshot(char* fin, char* fout) {
+	FILE* in, * out;
+	char* buf;
+	unsigned char* page;
+	int pageNum;
+	int okay;
 
-  in=fopen(fin,"rt");
-  if (!in) {
-    fprintf(stderr,"Could not open template state file '%s'.\n",fin);
-    return 0;
-  }
-  buf=(char *)malloc(512);
-  if (!buf) {
-    fprintf(stderr,"Could not allocate work space.\n");
-    return 0;
-  }
-  page=(unsigned char *)malloc(256);
-  if (!page) {
-    fprintf(stderr,"Could not allocate work space.\n");
-    return 0;
-  }
-  /* try to see if we are really an atari++ state file */
-  okay=0;
-  while(!feof(in)) {
-    buf[0]=0;
-    if (!fgets(buf,512,in))
-      buf[0]=0;
-    if (!strncmp("+RAM::",buf,6)) {
-      okay=1;
-      break;
-    }
-  }
-  if (!okay) {
-    fprintf(stderr,"Template snapshot '%s' not an Atari++ snapshot.\n",fin);
-    fclose(in);
-    free(buf);
-    free(page);
-    return 0;
-  }
+	in = fopen(fin, "rt");
+	if (!in) {
+		fprintf(stderr, "Could not open template state file '%s'.\n", fin);
+		return 0;
+	}
+	buf = (char*)malloc(512);
+	if (!buf) {
+		fprintf(stderr, "Could not allocate work space.\n");
+		return 0;
+	}
+	page = (unsigned char*)malloc(256);
+	if (!page) {
+		fprintf(stderr, "Could not allocate work space.\n");
+		return 0;
+	}
+	/* try to see if we are really an atari++ state file */
+	okay = 0;
+	while (!feof(in)) {
+		buf[0] = 0;
+		if (!fgets(buf, 512, in))
+			buf[0] = 0;
+		if (!strncmp("+RAM::", buf, 6)) {
+			okay = 1;
+			break;
+		}
+	}
+	if (!okay) {
+		fprintf(stderr, "Template snapshot '%s' not an Atari++ snapshot.\n", fin);
+		fclose(in);
+		free(buf);
+		free(page);
+		return 0;
+	}
 
-  out=fopen(fout,"wt");
-  if (!out) {
-    fprintf(stderr,"Cannot open snapshot '%s' for writing.\n",fout);
-    free(buf);
-    free(page);
-    return 0;
-  }
+	out = fopen(fout, "wt");
+	if (!out) {
+		fprintf(stderr, "Cannot open snapshot '%s' for writing.\n", fout);
+		free(buf);
+		free(page);
+		return 0;
+	}
 
-  pageNum=0;
-  in=fopen(fin,"rt");
-  if (in) {
-    while(!feof(in)) {
-      buf[0]=0;
-      if (!fgets(buf,512,in))
-        buf[0]=0;
-      if (!strncmp("+RAM::",buf,6)) {
-        fprintf(out,"%s",buf);
-        if (!read_page(in,buf,page)) {
-          fprintf(stderr,"Error reading template Atari++ snapshot.\n");
-          fclose(in);
-          fclose(out);
-          free(buf);
-          free(page);
-          return 0;
-        }
-        merge_page(pageNum,page);
-        save_page(out,page);
-        pageNum++;
-      } else {
-        fprintf(out,"%s",buf);
-      }
-    }
-  }
-  fclose(in);
-  fclose(out);
-  free(buf);
-  free(page);
-  fprintf(stderr,"Created Atari++ snapshot file '%s'\n",fout);
-  return 1;
+	pageNum = 0;
+	in = fopen(fin, "rt");
+	if (in) 
+	{
+		while (!feof(in)) 
+		{
+			buf[0] = 0;
+			if (!fgets(buf, 512, in))
+				buf[0] = 0;
+			if (!strncmp("+RAM::", buf, 6)) 
+			{
+				fprintf(out, "%s", buf);
+				if (!read_page(in, buf, page)) 
+				{
+					fprintf(stderr, "Error reading template Atari++ snapshot.\n");
+					fclose(in);
+					fclose(out);
+					free(buf);
+					free(page);
+					return 0;
+				}
+				merge_page(pageNum, page);
+				save_page(out, page);
+				pageNum++;
+			}
+			else {
+				fprintf(out, "%s", buf);
+			}
+		}
+		fclose(in);
+	}
+	fclose(out);
+	free(buf);
+	free(page);
+	fprintf(stderr, "Created Atari++ snapshot file '%s'\n", fout);
+	return 1;
 }
 /*=========================================================================*/
