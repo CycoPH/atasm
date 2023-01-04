@@ -1,5 +1,5 @@
 ﻿============================================================================
-ATasm v1.20
+ATasm v1.21
 A mostly Mac/65 compatible 6502 cross-assembler
 
 Copyright (c) 1998-2022 Mark Schmelzenbach
@@ -228,6 +228,13 @@ Version 1.19 - Modified the * program counter command to also name a memory regi
 				Slight warning and error format change to make it external parsable.
 Version 1.20 - Added the .ELSEIF directive to build easier .IF .ELSEIF .ELSE .ENDIF 
 				control blocks.
+Version 1.21 - Fixed the .ref implementation. It will now detect a forward reference to a label correctly.
+				This is useful in building libraries and excluding code from them if the functions or data
+				is not being referenced. i.e. If there is no JSR FUNC1 then the code if the .IF block is
+				not generated.
+				.IF .DEF func1
+					func1 ...
+				.ENDIF
 
 ============================================================================
 Chapter 1: ATasm

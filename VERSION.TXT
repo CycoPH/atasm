@@ -171,3 +171,12 @@ Dec 28, 2022
 
 Dec 29, 2022
   version 1.20 - Added the .ELSEIF directive to build easier .IF .ELSEIF .ELSE .ENDIF control blocks.
+
+Jan 4, 2023
+  version 1.21 - Fixed the .ref implementation. It will now detect a forward reference to a label correctly.
+				This is useful in building libraries and excluding code from them if the functions or data
+				is not being referenced. i.e. If there is no JSR FUNC1 then the code if the .IF block is
+				not generated.
+				.IF .DEF func1
+					func1 ...
+				.ENDIF

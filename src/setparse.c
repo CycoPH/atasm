@@ -301,7 +301,14 @@ int get_signed_expression(char *str, int tp) {
         look+=v;
         sym=validate_symbol(work);
         if (!sym)
-          *walk++='0';
+        {
+            // The symbol does not exist yet, but we can still look in the undefined label list, it might be there later 
+            unkLabel* look = isUnk(work);
+            if (look)
+                *walk++ = '1';
+            else
+                *walk++ = '0';
+        }
         else {
           if (sym->ref)
             *walk++='1';
