@@ -1,4 +1,4 @@
-# ATasm v1.21
+# ATasm v1.22
 ### A mostly Mac/65 compatible 6502 cross-assembler 
 Copyright (c) 1998-2021 Mark Schmelzenbach, modified by Peter Hinz (2021-2023)
 
@@ -47,6 +47,7 @@ All source code and the Windows binary are included in the package.
 3.19 .BANK [\<word>,\<word>]
 3.20 .ALIGN boundary
 3.21 .REGION \<string>
+3.22 JEQ, JNE, JPL, JMI, JCC, JCS, JVC, JVS (long branches)
   
 ### Chapter 4: Incompatibilities with Mac/65
 ### Chapter 5: A brief digression on writing ATasm
@@ -783,6 +784,29 @@ Memory Map
 ----------
 $2000-$20AB Booting
 $2100-$21FF	Sprite data
+```
+
+### 3.22 JEQ, JNE, JPL, JMI, JCC, JCS, JVC, JVS (long branches)
+
+These macro commands are similar to the 6502 branch instructions BEQ, BNE, BPL, BMI, BCC, BCS, BVC, BVS, but can target the entire 64KB address space via a jump.
+```
+ jne dest   ->  beq #3
+            ->  jmp dest
+```
+
+If the distance is short and the target is known during the first assembler pass then the jump is converted into a branch.
+
+The assembler spits out code change suggestions if it finds jumps that could be optimized to branches.
+i.e.
+```
+Possible long jump optimizations
+================================
+tests/long.asm @ 19     jeq known --> BEQ known ; distance is -13
+tests/long.asm @ 20     jne known --> BNE known ; distance is -15
+tests/long.asm @ 21     jpl known --> BPL known ; distance is -17
+tests/long.asm @ 30     jeq forward --> BEQ forward
+        Now:    BNE $03 ; distance is 83
+                JMP forward
 ```
 
 ## Chapter 4: Incompatibilities with Mac/65

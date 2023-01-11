@@ -21,7 +21,7 @@
 #ifndef DIRECTIVE_H
 #define DIRECTIVE_H
 
-#define NUM_DIR 31
+#define NUM_DIR 31+8
 
 /* Give names to the 'directives' entries */
 #define DOT_BYTE 0
@@ -56,11 +56,76 @@
 #define DOT_REGION_NAME 29
 #define DOT_ELSEIF 30
 
+// Extended the directives with some long jump hard coded macros
+// JEQ, JNE, JPL, JMI, JCC, JCS, JVC, JVS
+#define EX_JEQ 31
+#define EX_JNE 32
+#define EX_JPL 33
+#define EX_JMI 34
+#define EX_JCC 35
+#define EX_JCS 36
+#define EX_JVC 37
+#define EX_JVS 38
+
 char *direct[NUM_DIR]={".BYTE",".CBYTE",".SBYTE",".DBYTE",".ELSE",".END",".ENDIF",
 		".ERROR",".FLOAT",".IF",".INCLUDE",".LOCAL",".OPT",".PAGE",
 		".SET",".TAB",".TITLE",".WORD","*",".ENDM",".MACRO",".DS",
 		".INCBIN",".REPT",".ENDR",".WARN",".DC",".BANK",".ALIGN", ".NAME",
-        ".ELSEIF"
+        ".ELSEIF",
+        // Long jumps
+        "JEQ","JNE","JPL","JMI","JCC","JCS","JVC","JVS"
+};
+
+unsigned longJump2ShortOpcode[NUM_DIR] = {
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0xF0,       // JEQ -> BEQ 
+    0xD0,       // JNE -> BNE
+    0x10,       // JPL -> BPL
+    0x30,       // JMI -> BMI
+    0x90,       // JCC -> BCC
+    0x80,       // JCS -> BCS
+    0x50,       // JVC -> BVC
+    0x70,       // JVS -> BVS
+};
+
+char* longJump2ShortOpcodeName[NUM_DIR] = {
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    "BEQ",
+    "BNE",
+    "BPL",
+    "BMI",
+    "BCC",
+    "BCS",
+    "BVC",
+    "BVS",
+};
+
+unsigned longJump2InverseOpcode[NUM_DIR] = {
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0xD0,       // JEQ -> BNE 
+    0xF0,       // JNE -> BEQ
+    0x30,       // JPL -> BMI
+    0x10,       // JMI -> BPL
+    0x80,       // JCC -> BCS
+    0x90,       // JCS -> BCC
+    0x70,       // JVC -> BVS
+    0x50,       // JVS -> BVC
+};
+
+char* longJump2InverseOpcodeName[NUM_DIR] = {
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    "BNE",
+    "BEQ",
+    "BMI",
+    "BPL",
+    "BCS",
+    "BCC",
+    "BVS",
+    "BVC",
 };
 
 unsigned char ascii_to_screen[128] =

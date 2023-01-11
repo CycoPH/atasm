@@ -22,7 +22,7 @@
 #define SYMBOL_H
 
 #define MAJOR_VER 1
-#define MINOR_VER 21
+#define MINOR_VER 22
 #define BETA_VER 0
 
  /*==========================================================================*/
@@ -169,6 +169,35 @@ extern symbol* hash[HSIZE];
 extern FILE* listFile;
 
 /*==========================================================================*
+ * Long jump functionality
+ *==========================================================================*/
+typedef struct longJump {  /* Symbol table entry */
+	char* name;
+
+	int type;				// What type of long jump JEQ (31), JNE, JPL, JMI, JCC, JCS, JVC, JVS (38)
+
+	int pc;					// Where in memory is the instruction located
+	int targetAddr;			// Where in memory is it jumping to
+	char* targetName;		/// Which label are we jumping to
+	int makeShort;			// 1 then make it a short jump
+	int distance;			// how long is the jump
+
+	char* origLine;			// Original source code Line
+	char* outLine1;			// Generated assembler code
+	char* outLine2;			// Generated assembler code
+	char* altLine;			// Alternative line might be
+
+	struct longJump* nxt;
+	struct longJump* lnk, * mlnk;
+
+	/* Track the source of the long jump */
+	int lineNr;
+	char* filename;
+} longJump;
+
+extern longJump* ljHash[HSIZE];
+
+/*==========================================================================*
  * some prototypes
  *==========================================================================*/
 char* get_nxt_word(int tp);
@@ -215,4 +244,8 @@ void defUnk(char* unk, unsigned short addr);
 
 int clear_banks();
 void kill_banks();
+
+longJump* getLongJumpReference(char* fileInfo, int lineNumber);
+void dumpLongJumpOptimizations();
+
 #endif

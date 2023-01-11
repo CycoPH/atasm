@@ -348,6 +348,9 @@ int init_asm() {
   for(i=0;i<ISIZE;i++)  /* clear error/warning table */
     ihash[i]=NULL;
 
+  for (i = 0; i < HSIZE; i++)  /* clear long jump hash table */
+      ljHash[i] = NULL;
+
   process_predef(predefs);
 
   outline=(char *)malloc(256);
@@ -1188,135 +1191,156 @@ int add_label(char *label) {
 /*=========================================================================*
   function parse_operand(symbol *sym, char *str)
   parameters: sym - the opcode
-        str - the remaining chars on the line
+              str - the remaining chars on the line
 
   This function assembles a given opcode/operand pair, determing the
   appropriate opcode mode (immediate, indexed, indirect, etc)
  *=========================================================================*/
-int parse_operand(symbol *sym, char *str) {
-  short v,cmd;
-  unsigned short a;
-  char *idx, vidx, xtnd;
-  char buf[80];
+int parse_operand(symbol* sym, char* str) 
+{
+	short v, cmd;
+	unsigned short a;
+	char* idx, vidx, xtnd;
+	char buf[80];
 
-  idx=strchr(str,',');
-  a=0;
-  vidx=xtnd=0;
-  cmd=0;
+	idx = strchr(str, ',');
+	a = 0;
+	vidx = xtnd = 0;
+	cmd = 0;
 
-  if (idx) {
-    if ((idx>str)&&(*(idx-1)!='\'')) {  /* allow quoting: cmp #', */
-      *idx=0;
-      idx++;
-      vidx=TOUPPER(*idx);
-      if ((vidx!='X')&&(vidx!='Y'))
-        error("Illegal index",1);
-      if ((vidx=='X')&&(str[0]=='(')) {
-        *idx=0;
-        idx--;
-        *idx=')';
-      }
-    }
-  }
-  if (str[0]=='#') { /* Immediate mode */
-    if (pass) {   /* determine value */
-      v=get_immediate(str+1);
-      put_opcode(imm[sym->addr]);
-      put_byte(v);
-    } else pc+=2;
-  } else {
-    if (str[0]=='(') {
-      if (pass)
-        a=get_address(str);
+	if (idx) {
+		if ((idx > str) && (*(idx - 1) != '\'')) {  /* allow quoting: cmp #', */
+			*idx = 0;
+			idx++;
+			vidx = TOUPPER(*idx);
+			if ((vidx != 'X') && (vidx != 'Y'))
+				error("Illegal index", 1);
+			if ((vidx == 'X') && (str[0] == '(')) {
+				*idx = 0;
+				idx--;
+				*idx = ')';
+			}
+		}
+	}
+	if (str[0] == '#') { /* Immediate mode */
+		if (pass) {   /* determine value */
+			v = get_immediate(str + 1);
+			put_opcode(imm[sym->addr]);
+			put_byte(v);
+		}
+		else pc += 2;
+	}
+	else {
+		if (str[0] == '(') {
+			if (pass)
+				a = get_address(str);
 
-      if (sym->addr==OPI_JMP) { /* JMP indirect abs */
-        if (vidx)
-          error("Illegal indirect JMP",1);
-        cmd=ind[sym->addr];
-        xtnd=1;           /* fix indirect JMP size */
-      } else {
-        if (!vidx) {
-          error("Illegal indirect reference",1);
-        } else if (vidx=='X')
-          cmd=i_x[sym->addr];
-        else
-          cmd=i_y[sym->addr];
-        if ((pass)&&(a>255))
-          error("Illegal zero page reference.",1);
-      }
-      if (pass) {
-        put_opcode(cmd);
-        put_byte(a&0xff);
-        if ((a>255)||(xtnd))
-          put_byte(a>>8);
-      } else {
-        if (vidx)
-          pc+=2;
-        else
-          pc+=3;
-      }
-    } else { /* absolute reference */
-      a=get_expression(str,0);
-      if (pass) {  /* determine address */
-        a=get_address(str);
-        if (rel[sym->addr]>=0) { /* Relative branch */
-          if (vidx)
-            error("Illegal operand for relative branch",1);
-          cmd=rel[sym->addr];
-          if (a>255) {
-            v=a-pc-2;
-            if ((v>127)||(v<-128)) {
-              snprintf(buf,80,"Branch overflow! Target %d bytes away.",v);
-              error(buf,1);
-            }
-            if (v<0) v+=256;
-            a=v;
-          }
-        } else {
-          if (vidx) { /* Indexed mode */
-            if (vidx=='X') {
-              if (a<256)
-                cmd=z_x[sym->addr];
-              else
-                cmd=a_x[sym->addr];
-            } else {
-              if (a<256) {
-                cmd=z_y[sym->addr];
-                if (cmd==a_y[sym->addr])  /* pad LDA/STA ZP,y and friends */
-                  xtnd=1;
-              } else
-                cmd=a_y[sym->addr];
-            }
-          } else {
-            if (a<256) {
-              cmd=zpg[sym->addr];
-              if ((sym->addr==OPI_JMP)||(sym->addr==OPI_JSR))
-                xtnd=1;          /* pad "zero-page" jump */
-            } else
-              cmd=abl[sym->addr];
-          }
-        }
-        put_opcode(cmd);
-        put_byte(a&0xff);
-        if ((a>255)||(xtnd))
-          put_byte(a>>8);
-      } else {
-        if ((a<256)||(rel[sym->addr]>=0)) {
-          if ((sym->addr==OPI_JMP)|| /* pad a few zero-page opcodes */
-              (sym->addr==OPI_JSR)||
-              ((vidx=='Y')&&((a_y[sym->addr]==z_y[sym->addr]))))
-            pc+=3;
-          else
-            pc+=2;
-        } else if ((str[0]=='>')||(str[0]=='<'))  /* hi,lo are 2 bytes long */
-          pc+=2;
-        else
-          pc+=3;
-      }
-    }
-  }
-  return 1;
+			if (sym->addr == OPI_JMP) { /* JMP indirect abs */
+				if (vidx)
+					error("Illegal indirect JMP", 1);
+				cmd = ind[sym->addr];
+				xtnd = 1;           /* fix indirect JMP size */
+			}
+			else {
+				if (!vidx) {
+					error("Illegal indirect reference", 1);
+				}
+				else if (vidx == 'X')
+					cmd = i_x[sym->addr];
+				else
+					cmd = i_y[sym->addr];
+				if ((pass) && (a > 255))
+					error("Illegal zero page reference.", 1);
+			}
+			if (pass) {
+				put_opcode(cmd);
+				put_byte(a & 0xff);
+				if ((a > 255) || (xtnd))
+					put_byte(a >> 8);
+			}
+			else {
+				if (vidx)
+					pc += 2;
+				else
+					pc += 3;
+			}
+		}
+		else 
+        { 
+            /* absolute reference */
+			a = get_expression(str, 0);
+			if (pass) 
+            {  
+                /* determine address */
+				a = get_address(str);
+				if (rel[sym->addr] >= 0) { /* Relative branch */
+					if (vidx)
+						error("Illegal operand for relative branch", 1);
+					cmd = rel[sym->addr];
+					if (a > 255) {
+						v = a - pc - 2;
+						if ((v > 127) || (v < -128)) {
+							snprintf(buf, 80, "Branch overflow! Target %d bytes away.", v);
+							error(buf, 1);
+						}
+						if (v < 0) v += 256;
+						a = v;
+					}
+				}
+				else {
+					if (vidx) { /* Indexed mode */
+						if (vidx == 'X') {
+							if (a < 256)
+								cmd = z_x[sym->addr];
+							else
+								cmd = a_x[sym->addr];
+						}
+						else {
+							if (a < 256) {
+								cmd = z_y[sym->addr];
+								if (cmd == a_y[sym->addr])  /* pad LDA/STA ZP,y and friends */
+									xtnd = 1;
+							}
+							else
+								cmd = a_y[sym->addr];
+						}
+					}
+					else {
+						if (a < 256) {
+							cmd = zpg[sym->addr];
+							if ((sym->addr == OPI_JMP) || (sym->addr == OPI_JSR))
+								xtnd = 1;          /* pad "zero-page" jump */
+						}
+						else
+							cmd = abl[sym->addr];
+					}
+				}
+				put_opcode(cmd);
+				put_byte(a & 0xff);
+				if ((a > 255) || (xtnd))
+					put_byte(a >> 8);
+			}
+			else 
+            {
+				if ((a < 256) || (rel[sym->addr] >= 0)) 
+                {
+					if ((sym->addr == OPI_JMP) || /* pad a few zero-page opcodes */
+						(sym->addr == OPI_JSR) ||
+						((vidx == 'Y') && ((a_y[sym->addr] == z_y[sym->addr]))))
+						pc += 3;
+					else
+						pc += 2;
+				}
+				else if ((str[0] == '>') || (str[0] == '<'))  /* hi,lo are 2 bytes long */
+					pc += 2;
+				else
+					pc += 3;
+			}
+		}
+	}
+	return 1;
 }
+
 /*=========================================================================*
   function num_cvt(char *num)
   parameters: num - a string containing a numeric value
@@ -1855,6 +1879,134 @@ int skip_if()
 	return 1;
 }
 
+char* skipWhiteSpace(char* ptr)
+{
+    while ((*ptr == ' ' || *ptr == '\t') && *ptr != 0) ++ptr;
+    return ptr;
+}
+/*=========================================================================*
+ * function do_long_jump(symbol *sym)
+ * parameter sym- the symbol to parse
+ *
+ * This function implements a long jump macro:
+ * jcc bob => bcs $03 --|      $b0 $03
+ *            jmp bob   |      $4c Lo Hi
+ *                   <--|
+ * These macro commands are similar to the 6502 branch instructions BEQ, 
+ * BNE, BPL, BMI, BCC, BCS, BVC, BVS, but can target the entire 64KB 
+ * address space ("jump").
+ *=========================================================================*/
+void do_long_jump(symbol* sym)
+{
+    char* line, * str = NULL;
+    int addr;
+    char buf[80];
+    int currentPC = 0;        /* current PC*/
+
+    longJump* ref = getLongJumpReference(fin->name, fin->line);
+
+    if (pass == 0)
+    {
+        ref->pc = pc;
+        ref->type = sym->addr;
+    }
+
+    str = get_nxt_word(PARSE_NEXT_LINE);
+    addr = get_expression(str, 0);
+
+    if (pass == 0)
+    {
+        ref->targetAddr = addr;
+        ref->targetName = STRDUP(str);
+        if (addr != 65535)
+        {
+            // We know the target address, so can decide if this is a long or short jump
+            int distance = addr - pc - 2;
+            if (distance >= -128 && distance < 127)
+            {
+                // Convert to short jump
+                ref->makeShort = 1;
+                ref->distance = distance;
+            }
+        }
+
+        pc += ref->makeShort ? 2 : 5;
+
+        line = get_nxt_word(PARSE_CURRENT_LINE);
+        ref->origLine = STRDUP(skipWhiteSpace(line));
+        return;
+    }
+
+    if (pass)
+    {
+        ref->targetAddr = addr;
+        if (verbose) {
+            currentPC = print_pc();
+        }
+        sprintf(buf, "%s %s", longJump2ShortOpcodeName[ref->type], str);
+        ref->altLine = STRDUP(buf);
+
+        if (ref->makeShort)
+        {
+            // convert from long jump to the short hand version
+            int opcode = longJump2ShortOpcode[ref->type];
+            put_opcode(opcode);
+            put_byte((unsigned char)ref->distance);
+        }
+        else
+        {
+            ref->distance = addr - pc;
+            // put the inverse of the command
+            int opcode = longJump2InverseOpcode[ref->type];
+            put_opcode(opcode);
+            put_byte(0x03);
+
+            sprintf(buf, "%s $03", longJump2InverseOpcodeName[ref->type]);
+        }
+        ref->outLine1 = STRDUP(buf);
+
+        if (verbose)
+        {
+            if (lastSymbol && ((lastSymbol->addr & 0xFFFF) == currentPC) && lastSymbol->lineNr != fin->line) {
+                /* Write the original/unmodified symbol name to the outline */
+                sprintf(buf, " %s ", lastSymbol->orig);
+                strcat(outline, buf);
+            }
+            while (strlen(outline) < 16)
+                strcat(outline, " ");
+
+            aprintf("%s\t%s\n", outline, ref->outLine1);
+        }
+
+        if (ref->makeShort == 0)
+        {
+            outline[0] = 0;
+            if (verbose) {
+                currentPC = print_pc();
+            }
+            put_opcode(0x4c);       // JMP
+            put_word(addr, 0);
+
+            sprintf(buf, "JMP %s", str);
+            ref->outLine2 = STRDUP(buf);
+
+            if (verbose)
+            {
+                if (lastSymbol && ((lastSymbol->addr & 0xFFFF) == currentPC) && lastSymbol->lineNr != fin->line) {
+                    /* Write the original/unmodified symbol name to the outline */
+                    sprintf(buf, " %s ", lastSymbol->orig);
+                    strcat(outline, buf);
+                }
+                while (strlen(outline) < 16)
+                    strcat(outline, " ");
+                strcpy(buf, str);
+                line = get_nxt_word(PARSE_CURRENT_LINE);
+                aprintf("%s\tJMP %s\t\t;%s\n", outline, buf, line);
+            }
+        }
+    }
+}
+
 /*=========================================================================*
  * function proc_sym(symbol *sym)
  * parameter sym- the symbol to parse
@@ -2271,6 +2423,23 @@ int proc_sym(symbol *sym)
                         else
                             skip_if();      // Skip until .ELSE, .ELSEIF or .ENDIF
                     }
+                    break;
+                }
+
+                case EX_JEQ:
+                case EX_JNE:
+                case EX_JPL:
+                case EX_JMI:
+                case EX_JCC:
+                case EX_JCS:
+                case EX_JVC:
+                case EX_JVS:
+                {
+                    // jcc xyz
+                    // bcs *+4 --|      $b0 $03
+                    // jmp xyz   |      $4c Lo Hi
+                    // ....    <-|
+                    do_long_jump(sym);
                     break;
                 }
                 default:
@@ -3117,6 +3286,8 @@ int main(int argc, char* argv[])
 	{
 		showMemoryLayout();
 	}
+
+    dumpLongJumpOptimizations();
 
 
 

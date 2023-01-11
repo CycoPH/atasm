@@ -175,8 +175,16 @@ Dec 29, 2022
 Jan 4, 2023
   version 1.21 - Fixed the .ref implementation. It will now detect a forward reference to a label correctly.
 				This is useful in building libraries and excluding code from them if the functions or data
-				is not being referenced. i.e. If there is no JSR FUNC1 then the code if the .IF block is
+				is not being referenced. i.e. If there is no JSR FUNC1 then the code in the .IF block is
 				not generated.
 				.IF .DEF func1
 					func1 ...
 				.ENDIF
+			
+Jan 10, 2023
+  version 1.22 - Added long jump commands JEQ, JNE, JPL, JMI, JCC, JCS, JVC, JVS
+				These macro commands are similar to the 6502 branch instructions BEQ, BNE, BPL, BMI, BCC, BCS,
+				BVC, BVS, but can target the entire 64KB address space via a jump. If the distance is short
+				and the target is known during the first assembler pass then the jump is converted into a branch.
+				The assembler spits out code change suggestions if it finds jumps that could be optimized.
+				

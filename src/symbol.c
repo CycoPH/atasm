@@ -54,6 +54,8 @@ macro_call* invoked;
 unkLabel* unkLabels;
 symbol* hash[HSIZE];
 
+longJump* ljHash[HSIZE];
+
 symbol* linkit();
 int repass, double_fwd;
 
@@ -1509,3 +1511,197 @@ void clean_up() {
 	free_str_list(predefs);
 }
 /*=========================================================================*/
+
+longJump* getLongJumpReference(char* fileInfo, int lineNumber)
+{
+	int i;
+	longJump* walk;
+	char* look;
+	char nameIt[256];
+
+	// Create a hash code of the source file-line
+	sprintf(nameIt, "%s @ %d", fileInfo, lineNumber);
+
+	look = nameIt;
+
+	i = hashit(look);			// Find word index
+	walk = ljHash[i];			// Get initial pointer
+	while (walk) 
+	{       
+		// Search list for correct entry
+		if (!strcmp(walk->name, look)) {
+			return walk;
+		}
+		walk = walk->nxt;
+	}
+	// Not found, so create it
+	longJump* info = malloc(sizeof(longJump));
+	memset(info, 0, sizeof(longJump));
+	info->name = STRDUP(nameIt);
+	info->filename = STRDUP(fileInfo);
+	info->lineNr = lineNumber;
+	info->distance = 65535;		// Max jump distance
+
+	walk = ljHash[i];
+	if (!walk) {              /* First word at this location */
+		ljHash[i] = info;
+		return info;
+	}
+	while (walk->nxt)         /* Otherwise, traverse list to end */
+		walk = walk->nxt;
+	walk->nxt = walk->lnk = info;  /* and finally add word to list */
+
+	return info;
+}
+
+/*==========================================================================*
+ * procedure alpha_merge
+ * Part of the merge sort function, this does the actual merge...
+ * sorts list alphabetically.
+ *==========================================================================*/
+longJump* alpha_mergeLJ(longJump* p, longJump* q)
+{
+	longJump* r, * l;
+
+	if ((strcmp(p->name, q->name) < 0)) {
+		r = p;
+		p = p->lnk;
+	}
+	else {
+		r = q;
+		q = q->lnk;
+	}
+	l = r;
+	while ((p) && (q))
+		if ((strcmp(p->name, q->name) < 0)) {
+			r->lnk = p;
+			r = p;
+			p = p->lnk;
+		}
+		else {
+			r->lnk = q;
+			r = q;
+			q = q->lnk;
+		}
+	if (!p)
+		r->lnk = q;
+	else
+		r->lnk = p;
+	return (l);
+}
+
+int printedHeader = 0;
+void dumpHeader() {
+	if (printedHeader)
+		return;
+
+	printedHeader = 1;
+	fprintf(stderr, "\n\nPossible long jump optimizations\n================================\n");
+
+}
+void dumpLongJumpInfo(longJump* ref)
+{
+	if (ref->makeShort)
+	{
+		dumpHeader();
+		fprintf(stderr, "%s\t", ref->name);
+		if (ref->outLine1)
+			fprintf(stderr, "%s --> %s ; distance is %d\n", ref->origLine, ref->outLine1, ref->distance);
+	}
+	else
+	{
+		// Long jump but might be a short one
+		if (ref->distance >= -128 && ref->distance < 127)
+		{
+			// This could have been a short jump
+			dumpHeader();
+			fprintf(stderr, "%s\t%s --> %s\n", ref->name, ref->origLine, ref->altLine ? ref->altLine : "???");
+			if (ref->outLine1)
+				fprintf(stderr, "\tNow:\t%s ; distance is %d\n", ref->outLine1, ref->distance);
+			if (ref->outLine2)
+				fprintf(stderr, "\t\t%s\n", ref->outLine2);
+		}
+	}
+}
+
+void dumpLongJumpOptimizations()
+{
+	longJump* head, * walk;
+	int i = 0;
+
+	head = walk = NULL;
+	while ((i < HSIZE) && (!ljHash[i]))
+		i++;
+
+	if (i == HSIZE)
+		return;
+
+	head = walk = ljHash[i];
+
+	while (i < HSIZE) 
+	{  
+		// Walk through all indices of hash table
+		while (walk->nxt) {
+			walk->lnk = walk->nxt;
+			walk = walk->nxt;
+		}
+		walk->lnk = NULL;
+		i++;
+		while ((i < HSIZE) && (!ljHash[i]))
+			i++;
+		if (i < HSIZE) {
+			walk->lnk = ljHash[i];
+			walk = ljHash[i];
+		}
+	}
+	// walk from clist
+	if (head == NULL)
+		return;
+
+	// Sort the names
+
+	longJump* p, * q, * stack[128];
+	int c, merge, d;
+
+	p = head;
+	c = 0;
+	while (p) 
+	{
+		c++;
+		i = c;
+		merge = 0;
+		while (!(i & 1)) {
+			i /= 2;
+			merge++;
+		}
+		q = p;
+		p = p->lnk;
+		q->lnk = NULL;
+		for (i = 0; i <= merge - 1; i++) {
+			q = alpha_mergeLJ(q, stack[i]);
+		}
+		stack[merge] = q;
+	}
+	merge = -1;
+	while (c) {
+		d = c & 1;
+		c = c / 2;
+		merge++;
+		if (d) {
+			if (p) {
+				p = alpha_mergeLJ(p, stack[merge]);
+			}
+			else {
+				p = stack[merge];
+			}
+		}
+	}
+	head = p;
+
+	longJump* pos = head;
+	while (pos) 
+	{
+		dumpLongJumpInfo(pos);
+		pos = pos->lnk;
+	}
+}
