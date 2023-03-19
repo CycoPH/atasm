@@ -84,7 +84,7 @@ unsigned longJump2ShortOpcode[NUM_DIR] = {
     0x10,       // JPL -> BPL
     0x30,       // JMI -> BMI
     0x90,       // JCC -> BCC
-    0x80,       // JCS -> BCS
+    0xB0,       // JCS -> BCS
     0x50,       // JVC -> BVC
     0x70,       // JVS -> BVS
 };
@@ -109,7 +109,7 @@ unsigned longJump2InverseOpcode[NUM_DIR] = {
     0xF0,       // JNE -> BEQ
     0x30,       // JPL -> BMI
     0x10,       // JMI -> BPL
-    0x80,       // JCC -> BCS
+    0xB0,       // JCC -> BCS
     0x90,       // JCS -> BCC
     0x70,       // JVC -> BVS
     0x50,       // JVS -> BVC

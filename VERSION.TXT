@@ -188,3 +188,6 @@ Jan 10, 2023
 				and the target is known during the first assembler pass then the jump is converted into a branch.
 				The assembler spits out code change suggestions if it finds jumps that could be optimized.
 				
+Mar 19, 2023
+  version 1.23 - Fixed the opcodes for the JCC -> BCS/BCC long jumps.
+				Thank you to LarsImNetz for finding this.

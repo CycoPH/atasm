@@ -1,4 +1,4 @@
-# ATasm v1.22
+# ATasm v1.23
 ### A mostly Mac/65 compatible 6502 cross-assembler 
 Copyright (c) 1998-2021 Mark Schmelzenbach, modified by Peter Hinz (2021-2023)
 
