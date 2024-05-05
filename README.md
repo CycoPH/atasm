@@ -1,4 +1,4 @@
-# ATasm v1.23
+# ATasm v1.25
 ### A mostly Mac/65 compatible 6502 cross-assembler 
 Copyright (c) 1998-2021 Mark Schmelzenbach, modified by Peter Hinz (2021-2023)
 
@@ -48,7 +48,9 @@ All source code and the Windows binary are included in the package.
 3.20 .ALIGN boundary
 3.21 .REGION \<string>
 3.22 JEQ, JNE, JPL, JMI, JCC, JCS, JVC, JVS (long branches)
-  
+3.23 Trigonometry value generators
+3.24 RUN and INIT address specifiers
+
 ### Chapter 4: Incompatibilities with Mac/65
 ### Chapter 5: A brief digression on writing ATasm
 ### Chapter 6: Bug reports, Feature Requests and Credits
@@ -138,6 +140,7 @@ following command line parameters:
 					for VSCode plugin, c=constants, l=global labels, 
 					m=macros, L=all labels
 		-eval: only compile (no binary output)
+		-a OR -mac65: autobank: Put each segment in its own bank. For Mac/65 compatibility
 ```
 The assembly trace and symbol table dump will be sent to stdout. This can be
 piped to a file if desired.
@@ -759,6 +762,14 @@ append the code in the .obj file), use the following:
 If you wish to split the .obj file, but have the .BANKNUM operator
 report as bank 0, use the following:
 ```.bank ,0```
+
+Note: When the -a / -mac65 (autobank) option is used, the .BANK directive
+is disabled, and will cause an assembly error. This is because manual
+banking doesn't mix with automatic per-segment banking. Basically,
+when -a/-mac65 is in use, each *= acts as though it had a .BANK (with no
+arguments) just before it. The advantage of autobank is that it
+makes Atasm emit the segments in the order they occur in the source,
+which makes Atasm more compatible with Mac/65.
 		
 ### 3.20 .ALIGN boundary
 This directive aligns the current location to a specified boundary.
@@ -809,6 +820,166 @@ tests/long.asm @ 30     jeq forward --> BEQ forward
                 JMP forward
 ```
 
+### 3.23 Trigonometry value generators
+
+The basic sin, cos functions are very useful when generating tables for fast
+3D graphics or other trigonometry based operations. Atasm has the ability to
+generate SIN and COS values.
+
+The value generation is implemented as dot functions. I.e. .SIN, .COS where the
+parameters determine the angle, by how many steps there are in a circle and by
+how much the sin/cos value should be scaled.
+
+A circle has 360 degrees (2x PI radians) but we normally don’t want to work in
+360 degrees. The Steps parameter sets the number of degrees a circle has.  The
+Angle parameter indicates how far around the circle the value is, relative to
+the steps. SIN and COS output a value range of [-1 ... 1], the Scale parameter
+is used to change that to your required range.
+
+By default .SIN and .COS generate 16-signed values.  On optional parameter and
+the beginning of the command lets you select the high or low byte of the 16-bit
+value.
+
+The general format of a trigonometric function is:
+```
+	.SIN [Optional high/low byte/word], Angle, Steps, Scale
+```
+
+Where the first parameter selects what size output will be generated:
+    
+	< Low byte of 16-bit value
+	> High byte of 16-bit value
+
+**Some examples:**
+
+1. Create 4 sin values showing the full range. 256 steps, scale by 4096 ($1000)
+```		
+		.SIN 0, 256, $1000 ; Should give 0 = $0000
+		.SIN 64, 256, $1000 ; Should give 4096 = $1000
+		.SIN 128, 256, $1000 ; Should give 0 = $0000
+		.SIN 192, 256, $1000 ; Should give -4096 = $F000
+		This will produce the following bytes (note 16-bit LSB MSB)
+		00 00 00 10 00 00 00 F0
+```
+
+2. Create a 16-bit SIN table. 256 steps, scale by 4096 ($1000)
+```
+		*=$2000 ; Locate data @ $2000
+		SCALE=4096
+		angle .= 0
+		.rept 256
+		.sin angle, 256, SCALE
+		        angle .= angle + 1
+		.endr
+
+	This will produce the following bytes (note 16-bit LSB MSB)
+	Source: tests/sin.asm
+	18 2000  00 00 .sin angle,256,SCALE ;(0,256,4096)=        0 0x0000
+	18 2002  64 00 .sin angle,256,SCALE ;(1,256,4096)=        100 0x0064
+	18 2004  C8 00 .sin angle,256,SCALE ;(2,256,4096)=        200 0x00C8
+	18 2006  2D 01 .sin angle,256,SCALE ;(3,256,4096)=        301 0x012D
+	18 2008  91 01 .sin angle,256,SCALE ;(4,256,4096)=        401 0x0191
+	18 200A  F5 01 .sin angle,256,SCALE ;(5,256,4096)=        501 0x01F5
+	18 200C  59 02 .sin angle,256,SCALE ;(6,256,4096)=        601 0x0259
+	. . .
+	18 21F8  6F FE .sin angle,256,SCALE ;(252,256,4096)=        -401 0xFE6F
+	18 21FA  D3 FE .sin angle,256,SCALE ;(253,256,4096)=        -301 0xFED3
+	18 21FC  38 FF .sin angle,256,SCALE ;(254,256,4096)=        -200 0xFF38
+	18 21FE  9C FF .sin angle,256,SCALE ;(255,256,4096)=        -100 0xFF9C
+```
+
+3. Create a 16-bit SIN and COS table. 256 steps, scale by 4096 ($1000)
+   COS is offset from SIN by 90 degrees, so starts at 90/360 * 256 = 64.
+```   
+		*=$2000 ; Locate data @ $2000
+		SCALE=4096
+		angle .= 0
+		.rept 256+64
+		.sin angle,256,SCALE
+		angle .= angle + 1
+		.endr
+
+	This will produce the following bytes (note 16-bit LSB MSB)
+	18 2000  00 00  .sin angle,256,SCALE ;(0,256,4096)=        0 0x0000
+	18 2002  64 00  .sin angle,256,SCALE ;(1,256,4096)=        100 0x0064
+	18 2004  C8 00  .sin angle,256,SCALE ;(2,256,4096)=        200 0x00C8
+	18 2006  2D 01  .sin angle,256,SCALE ;(3,256,4096)=        301 0x012D
+	18 2008  91 01  .sin angle,256,SCALE ;(4,256,4096)=        401 0x0191
+	. . .
+	18 2276  E1 0F  .sin angle,256,SCALE ;(315,256,4096)=        4065 0x0FE1
+	18 2278  EC 0F  .sin angle,256,SCALE ;(316,256,4096)=        4076 0x0FEC
+	18 227A  F4 0F  .sin angle,256,SCALE ;(317,256,4096)=        4084 0x0FF4
+	18 227C  FB 0F  .sin angle,256,SCALE ;(318,256,4096)=        4091 0x0FFB
+	18 227E  FE 0F  .sin angle,256,SCALE ;(319,256,4096)=        4094 0x0FFE
+```
+
+4. Here is a sample for a combined SIN/COS table with Low (LSB) and
+	High (MSB) split into their own tables.
+```
+		*=$2000 ; Locate data @ $2000
+		SCALE=4096
+		angle .= 0
+		.rept 256+64
+		        .sin <,angle,256,SCALE
+		        angle .= angle + 1
+		.endr
+		angle .= 0
+		.rept 256+64
+		        .sin >,angle,256,SCALE
+		        angle .= angle + 1
+		.endr
+```
+
+### 3.24 RUN and INIT address specifiers
+There are two ways to get your code to INIT and BOOT in Atasm.
+Below is the same code showing the two different methods:
+
+#### Option 1: Using banks
+```
+	.BANK	; Put the following code into a memory bank
+	* = $8000
+INIT:
+	LDA #0
+	STA 710
+	RTS 
+
+	.BANK 	; Start a new bank for INITAT.  During load this will be executed first
+	* = $2e2
+	.WORD INIT	
+
+	*=  $8000	; Put the rest of the code in another bank
+CYCLE:
+	LDA 20
+	STA 709
+	JMP CYCLE
+
+	.BANK		; Tell Atari to run this code once the file is loaded
+	* = $2e0
+	.WORD CYCLE	
+```
+
+#### Option 2: Using .RUN and .INIT
+
+```
+	.BANK
+	* =  $8000
+INIT:
+	LDA #0
+	STA 710
+	RTS 
+
+	.INIT INIT
+
+	.BANK
+	* =  $8000
+CYCLE:
+	LDA 20
+	STA 709
+	JMP CYCLE
+
+	.RUN CYCLE
+```
+	
 ## Chapter 4: Incompatibilities with Mac/65
 Perhaps most importantly, ATasm works with ASCII files, not ATASCII or
 Mac/65 tokenized save files. If you must use a tokenized file there

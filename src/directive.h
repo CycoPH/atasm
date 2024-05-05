@@ -21,7 +21,7 @@
 #ifndef DIRECTIVE_H
 #define DIRECTIVE_H
 
-#define NUM_DIR 31+8
+#define NUM_DIR 31+8+2+3+2
 
 /* Give names to the 'directives' entries */
 #define DOT_BYTE 0
@@ -67,13 +67,32 @@
 #define EX_JVC 37
 #define EX_JVS 38
 
+// SIN, COS
+#define DOT_SIN 39
+#define DOT_COS 40
+
+// Float to unsigned 16-bit/8-bit number
+#define DOT_FLOAT_2_U16_LH 41
+#define DOT_FLOAT_2_U16_HL 42
+#define DOT_FLOAT_2_U8 43
+
+// .RUN and .INIT segment shortcuts
+#define DOT_RUN 44
+#define DOT_INIT 45
+
 char *direct[NUM_DIR]={".BYTE",".CBYTE",".SBYTE",".DBYTE",".ELSE",".END",".ENDIF",
 		".ERROR",".FLOAT",".IF",".INCLUDE",".LOCAL",".OPT",".PAGE",
 		".SET",".TAB",".TITLE",".WORD","*",".ENDM",".MACRO",".DS",
 		".INCBIN",".REPT",".ENDR",".WARN",".DC",".BANK",".ALIGN", ".NAME",
         ".ELSEIF",
         // Long jumps
-        "JEQ","JNE","JPL","JMI","JCC","JCS","JVC","JVS"
+        "JEQ","JNE","JPL","JMI","JCC","JCS","JVC","JVS",
+        // Trig
+        ".SIN",".COS",
+        // Float to unsigned 16-bit / 8-bit
+        ".FLOAT2U16LH",".FLOAT2U16HL",".FLOAT2U8",
+		// Run and init shortcuts
+		".RUN", ".INIT"
 };
 
 unsigned longJump2ShortOpcode[NUM_DIR] = {
@@ -87,6 +106,9 @@ unsigned longJump2ShortOpcode[NUM_DIR] = {
     0xB0,       // JCS -> BCS
     0x50,       // JVC -> BVC
     0x70,       // JVS -> BVS
+    0,0,
+    0,0,0,
+    0,0,
 };
 
 char* longJump2ShortOpcodeName[NUM_DIR] = {
@@ -100,6 +122,9 @@ char* longJump2ShortOpcodeName[NUM_DIR] = {
     "BCS",
     "BVC",
     "BVS",
+    0,0,
+    0,0,0,
+    0,0,
 };
 
 unsigned longJump2InverseOpcode[NUM_DIR] = {
@@ -113,6 +138,9 @@ unsigned longJump2InverseOpcode[NUM_DIR] = {
     0x90,       // JCS -> BCC
     0x70,       // JVC -> BVS
     0x50,       // JVS -> BVC
+    0,0,
+    0,0,0,
+    0,0,
 };
 
 char* longJump2InverseOpcodeName[NUM_DIR] = {
@@ -126,6 +154,9 @@ char* longJump2InverseOpcodeName[NUM_DIR] = {
     "BCC",
     "BVS",
     "BVC",
+    0,0,
+    0,0,0,
+    0,0,
 };
 
 unsigned char ascii_to_screen[128] =

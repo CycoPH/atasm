@@ -1,7 +1,10 @@
 .*.swp
 *.o
+*.65o
 *.atr
 atr
 .vs
 bin
 large
+list.lst
+asm-symbols.json

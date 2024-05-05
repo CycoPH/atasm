@@ -25,6 +25,8 @@
     <ClCompile Include="src\dimage.c" />
     <ClCompile Include="src\inc_path.c" />
     <ClCompile Include="src\parser.c" />
+    <ClCompile Include="src\parse_float.c" />
+    <ClCompile Include="src\setfloatparse.c" />
     <ClCompile Include="src\setparse.c" />
     <ClCompile Include="src\state.c" />
     <ClCompile Include="src\state2.c" />

@@ -1352,7 +1352,7 @@ int do_rept(symbol* sym) {
 		error("No repetition parameter specified.", 1);
 
 	squeeze_str(str);
-	num = get_expression(str, 0);
+	num = get_expression(str, 0, 0);
 	if (num == 0xffff)
 		error("Malformed repeat value.", 1);
 

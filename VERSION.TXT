@@ -191,3 +191,42 @@ Jan 10, 2023
 Mar 19, 2023
   version 1.23 - Fixed the opcodes for the JCC -> BCS/BCC long jumps.
 				Thank you to LarsImNetz for finding this.
+
+Nov 1, 2023
+  version 1.24 - Added basic trigonometry functions as dot commands: .sin, .cos
+				These can be used in loops to generate trig tables.
+
+May 4, 2024
+  version 1.25 - Added -a / -mac65 option
+				This option will create a memory bank for every program counter assignment.
+				* = $2000
+				* = $2100
+				This will create 2 banks and put the code into the respective banks.
+				The banks are NOT sorted or combined.
+				This means you can do something like this now:
+				* = $2000
+				init: RTS
+				* = $2e2
+				.WORD init
+				* = $2100
+				boot: lda #1
+				.....
+				* = $2e0
+				.word boot
+
+				The segments in the xex will be in the correct order:
+				$2000
+				$2e2
+				$2100
+				$2e0
+
+				Or even easier you can now use the .INIT and .RUN commands to replace:
+				* = $2e0
+				.word ....
+
+				So this will work now:
+				* = $2000
+				boot: .....
+				.RUN boot
+
+				And the assembled code will start running @ $2000

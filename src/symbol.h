@@ -22,9 +22,12 @@
 #define SYMBOL_H
 
 #define MAJOR_VER 1
-#define MINOR_VER 23
+#define MINOR_VER 25
 #define BETA_VER 0
 
+ /*==========================================================================*/
+#define STORE_LO_HI 0
+#define STORE_HI_LO 1
  /*==========================================================================*/
 
 #define DUMP_NOTHING        0
@@ -52,12 +55,18 @@ typedef struct memory_name /* Name of a memory region */
 } memory_name;
 
 /*==========================================================================*/
-typedef struct memBank {
-	int id, sym_id;
-	unsigned char* memmap, * bitmap;  /* memory snapshot, and bitmap */
+// This is an element in the memoryBanks linked list
+// 'memoryBanks' and 'activeBank' point to this structure
+typedef struct MemoryBank {
+	int bankNr;				// Unique id of the memory bank.  Starts at 0++ OR can be assigned freely
+	int reportedBankNr;
+	unsigned char* memmap;
+	unsigned char* bitmap;  /* memory snapshot, and bitmap */
 	int offset;
-	struct memBank* nxt;
-} memBank;
+
+	struct MemoryBank* next;		// Link to next memory bank in the list
+} MemoryBank;
+
 /*==========================================================================*/
 typedef struct symbol {  /* Symbol table entry */
 	char* name;
@@ -158,7 +167,7 @@ extern int repass;  /* flag indicating that a referenced label changed size */
 extern file_stack* fin;
 extern macro* macro_list;
 extern macro_call* invoked;
-extern memBank* banks, * activeBank;
+extern MemoryBank* memoryBanks, * activeBank;
 extern char* outline;  /* the line of text written out in verbose mode */
 extern unkLabel* unkLabels; /* list of unknown, referenced symbols */
 
@@ -204,7 +213,7 @@ char* get_nxt_word(int tp);
 int squeeze_str(char* str);
 int num_cvt(char* num);
 
-unsigned short get_expression(char* str, int tp);
+unsigned short get_expression(char* str, int tp, int withRollover);
 int get_signed_expression(char* str, int tp);
 int get_name(char* src, char* dst);
 
@@ -247,5 +256,7 @@ void kill_banks();
 
 longJump* getLongJumpReference(char* fileInfo, int lineNumber);
 void dumpLongJumpOptimizations();
+
+float get_float_expression(char* str, int tp);
 
 #endif

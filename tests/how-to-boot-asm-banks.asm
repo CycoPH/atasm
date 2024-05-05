@@ -1,0 +1,21 @@
+	.BANK
+	* = $8000
+INIT:
+	LDA #0
+	STA 710
+	RTS 
+
+	.BANK 
+	* = $2e2
+	.WORD INIT	
+
+
+	*=  $8000
+CYCLE:
+	LDA 20
+	STA 709
+	JMP CYCLE
+
+	.BANK
+	* = $2e0
+	.WORD CYCLE	

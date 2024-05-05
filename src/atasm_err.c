@@ -97,7 +97,7 @@ int errCheck(unsigned int id, unsigned int num) {
 	return 0;
 }
 /*=========================================================================*
- * function error(char *err, int tp)
+ * function error(char *err, int errLevel)
  * parameters: err - the error message
  *             errLevel  - the error severity (0=warning, else fatal error)
  *
@@ -158,3 +158,8 @@ int error(char* err, int errLevel)
 	return 0;
 }
 /*=========================================================================*/
+
+
+int floaterror(char* err) {
+	return error(err, 1);
+}

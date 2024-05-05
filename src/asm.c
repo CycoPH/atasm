@@ -242,8 +242,8 @@ str_list *predefs;    /* predefined stuff (like -dfoo=1) */
 
 options opt;
 file_stack *fin;
-memBank *banks, *activeBank;
-int bankID;
+MemoryBank *memoryBanks, *activeBank;
+int bankID;     // Id of the bank to write data into
 char *outline;  /* the line of text written out in verbose mode */
 
 symbol* lastSymbol = NULL;
@@ -258,127 +258,139 @@ FILE *listFile;
  * removes all banks
  *=========================================================================*/
 void kill_banks() {
-  memBank *bkill;
+  MemoryBank *bkill;
   /* Free mem-maps */
-  while(banks) {
-    bkill=banks;
+  while(memoryBanks) {
+    bkill=memoryBanks;
     free(bkill->memmap);
     free(bkill->bitmap);
-    banks=banks->nxt;
+    memoryBanks=memoryBanks->next;
     free(bkill);
   }
-  banks=NULL;
+  memoryBanks=NULL;
 }
 
-/*=========================================================================*
- * function get_bank
- * initializes and returns a new memory bank object
- *=========================================================================*/
-memBank *get_bank(int id, int sym_id) {
-  memBank *bank, *walk;
+/** =========================================================================
+ * \brief function get_bank
+ *           Initializes and returns a new memory bank object
+ * \param bank_nr Primary id of the memory bank 0...
+ * \param reported_bank_nr Use this number in the .BANKNUM operator
+ * \return 
+ */
+MemoryBank *get_bank(const int bank_nr, const int reported_bank_nr) {
+	MemoryBank* bank = NULL;
+	MemoryBank* walk = memoryBanks;
 
-  bank=NULL;
-  walk=banks;
-  while((walk)&&(walk->nxt)) {
-    if ((walk->id==id)&&(walk->sym_id==sym_id))
-      return walk;
-    else if ((walk->nxt)&&(walk->nxt->id>id)) {
-      bank=(memBank *)malloc(sizeof(memBank));
-      if (!bank)
-          return NULL;
-      bank->nxt=walk->nxt;
-      break;
-    }
-    walk=walk->nxt;
-  }
-  if ((walk)&&(walk->id==id))
-    return walk;
+	while (walk && walk->next)
+	{
+        if (walk->bankNr == bank_nr && walk->reportedBankNr == reported_bank_nr) 
+        {
+            return walk;        // Found a bank with the required ids. Use it
+        }
+        else if (walk->next && walk->next->bankNr > bank_nr) {
+            // If the next bank in the list has a higher bank # than the new one
+            // then create a new container now
+			bank = (MemoryBank*)malloc(sizeof(MemoryBank));
+			if (!bank)
+				return NULL;
+			bank->next = walk->next;
+			break;
+		}
+		walk = walk->next;
+	}
+	if (walk && walk->bankNr == bank_nr)
+		return walk;
 
-  if (!bank) {
-    bank=(memBank *)malloc(sizeof(memBank));
-    if (bank)
-      bank->nxt=NULL;
-  }
-  if (!bank)
-    return NULL;
+	if (bank == NULL)
+	{
+		// Create a new bank container
+		bank = (MemoryBank*)malloc(sizeof(MemoryBank));
+		if (bank == NULL)
+			return NULL;
+		bank->next = NULL;
+	}
 
-  bank->id=id;
-  bank->sym_id=sym_id;
-  bank->offset=0;
-  bank->memmap=(unsigned char *)malloc(65536); /* memory snapshot */
-  if (!bank->memmap) {
-    free(bank);
-    return NULL;
-  }
-  bank->bitmap=(unsigned char *)malloc(8192);
-  if (!bank->bitmap) {
-    free(bank->memmap);
-    free(bank);
-    return NULL;
-  }
-  memset(bank->memmap,0,65536);
-  memset(bank->bitmap,0,8192);
-  if (walk) {
-    walk->nxt=bank;
-  } else {
-    banks=bank;
-  }
-  return bank;
+	bank->bankNr = bank_nr;
+	bank->reportedBankNr = reported_bank_nr;
+	bank->offset = 0;
+	bank->memmap = (unsigned char*)malloc(65536); /* memory snapshot */
+	if (!bank->memmap) {
+		free(bank);
+		return NULL;
+	}
+	bank->bitmap = (unsigned char*)malloc(8192);
+	if (!bank->bitmap) {
+		free(bank->memmap);
+		free(bank);
+		return NULL;
+	}
+	memset(bank->memmap, 0, 65536);
+	memset(bank->bitmap, 0, 8192);
+
+    // Add the bank to the list
+	if (walk) {
+		walk->next = bank;
+	}
+	else {
+		memoryBanks = bank;
+	}
+	return bank;
 }
+
 /*=========================================================================*
  * function init_asm
  * initializes the assembler
  *=========================================================================*/
 int init_asm() {
-  int i,ops;
-  symbol *sym;
+	int i, ops;
+	symbol* sym;
 
-  pass=warn=bsize=repass=double_fwd=0;
-  fin=NULL;
-  macro_list=NULL;
-  invoked=NULL;
-  unkLabels=NULL;
-  banks=NULL;
-  bankID=-1;
-  trackedFiles = NULL; /* keep track of all filenames used, 0 indexed */
-  namedMemoryRegions = NULL;
+	pass = warn = bsize = repass = double_fwd = 0;
+	fin = NULL;
+	macro_list = NULL;
+	invoked = NULL;
+	unkLabels = NULL;
+	memoryBanks = NULL;
+	bankID = -1;
+	trackedFiles = NULL; /* keep track of all filenames used, 0 indexed */
+	namedMemoryRegions = NULL;
 
-  for(i=0;i<HSIZE;i++)  /* clear symbol table */
-    hash[i]=NULL;
-  for(i=0;i<ISIZE;i++)  /* clear error/warning table */
-    ihash[i]=NULL;
+	for (i = 0; i < HSIZE; i++)  /* clear symbol table */
+		hash[i] = NULL;
+	for (i = 0; i < ISIZE; i++)  /* clear error/warning table */
+		ihash[i] = NULL;
 
-  for (i = 0; i < HSIZE; i++)  /* clear long jump hash table */
-      ljHash[i] = NULL;
+	for (i = 0; i < HSIZE; i++)  /* clear long jump hash table */
+		ljHash[i] = NULL;
 
-  process_predef(predefs);
+	process_predef(predefs);
 
-  outline=(char *)malloc(256);
-  activeBank=get_bank(0,0);
+	outline = (char*)malloc(256);
+	activeBank = get_bank(0, 0);
 
-  if ((!outline)||(!activeBank)) {
-    error("Cannot alocate memory snapshot.",1);
-  }
+	if (outline == NULL || activeBank == NULL) {
+		error("Cannot allocate memory snapshot.", 1);
+	}
 
-  ops=NUM_OPS;
+	ops = NUM_OPS;
 
-  for(i=0;i<ops;i++) {  /* insert ops into symbol table */
-    sym=get_sym();
-    sym->tp=OPCODE;
-    sym->addr=i;
-    sym->name=nmem[i];
-    sym->orig = sym->name;
-    addsym(sym);
-  }
-  for(i=0;i<NUM_DIR;i++) { /* insert compiler directives into table */
-    sym=get_sym();
-    sym->tp=DIRECT;
-    sym->addr=i;
-    sym->name=direct[i];
-    sym->orig=sym->name;
-    addsym(sym);
-  }
-  return 1;
+	for (i = 0; i < ops; i++) {  /* insert ops into symbol table */
+		sym = get_sym();
+		sym->tp = OPCODE;
+		sym->addr = i;
+		sym->name = nmem[i];
+		sym->orig = sym->name;
+		addsym(sym);
+	}
+	for (i = 0; i < NUM_DIR; i++) { /* insert compiler directives into table */
+		sym = get_sym();
+		sym->tp = DIRECT;
+		sym->addr = i;
+		sym->name = direct[i];
+		sym->orig = sym->name;
+		addsym(sym);
+	}
+	return 1;
 }
 
 /*=========================================================================*
@@ -1013,20 +1025,21 @@ int print_pc() {
   return opc;
 }
 /*=========================================================================*
-  function get_address(char *str)
+  function get_address(char *str, int withRollover)
   parameters: str - a string containing the address (possibly an expr)
+              withRollover = 1 then 65535+1 -> 0 otherwise stays at 65535
   returns the address
 
   returns a numeric address from a given string
  *=========================================================================*/
-unsigned short get_address(char *str) {
-  short v;
-  unsigned short a;
+unsigned short get_address(char *str, int withRollover) {
+	short v;
+	unsigned short a;
 
-  v=get_expression(str,1);
-  a=(unsigned short)v;
-  a=a&0xffff;
-  return a;
+	v = get_expression(str, 1, withRollover);
+	a = (unsigned short)v;
+	a = a & 0xffff;
+	return a;
 }
 /*=========================================================================*
   function get_immediate(char *str)
@@ -1037,7 +1050,7 @@ unsigned short get_address(char *str) {
 short get_immediate(char *str) {
   unsigned short v,i;
 
-  v=get_expression(str,1);
+  v=get_expression(str,1, 0);
   i=v;
   if (i>>8) {
     error("Immediate overflow",0);
@@ -1138,14 +1151,14 @@ int add_label(char *label) {
           strcpy(nsym->name,label);
           nsym->tp=MACROL;
           nsym->addr=pc;
-          nsym->bank=activeBank->sym_id;
+          nsym->bank=activeBank->reportedBankNr;
           addsym(nsym);
         }
         invoked=hold;
 
         sym->tp=MACROL;
         sym->addr=pc;
-        sym->bank=activeBank->sym_id;
+        sym->bank=activeBank->reportedBankNr;
       }
       sym->num=0;
     } else {
@@ -1156,11 +1169,11 @@ int add_label(char *label) {
       else
         sym->tp=LABEL;  /* otherwise, a standard label/equate */
       sym->addr=pc;
-      sym->bank=activeBank->sym_id;
+      sym->bank=activeBank->reportedBankNr;
     }
     if (sym->tp==LABEL) {
       defUnk(sym->name,pc);
-      sym->bank=activeBank->sym_id;
+      sym->bank=activeBank->reportedBankNr;
     }
     addsym(sym);
   }
@@ -1175,13 +1188,13 @@ int add_label(char *label) {
 
     if (pass) {
       squeeze_str(str);
-      sym->addr=get_address(str);
-      sym->bank=activeBank->sym_id;
+      sym->addr=get_address(str,0);
+      sym->bank=activeBank->reportedBankNr;
     } else {
       squeeze_str(str);
-      v=get_expression(str,0);  /* allow forward reference in equates */
+      v=get_expression(str,0, 0);  /* allow forward reference in equates */
       sym->addr=v&0xffff;       /* But causes problems... crazy.m65 */
-      sym->bank=activeBank->sym_id;
+      sym->bank=activeBank->reportedBankNr;
     }
     eq=0;
     defUnk(sym->name,sym->addr);
@@ -1233,7 +1246,7 @@ int parse_operand(symbol* sym, char* str)
 	else {
 		if (str[0] == '(') {
 			if (pass)
-				a = get_address(str);
+				a = get_address(str,0);
 
 			if (sym->addr == OPI_JMP) { /* JMP indirect abs */
 				if (vidx)
@@ -1268,11 +1281,11 @@ int parse_operand(symbol* sym, char* str)
 		else 
         { 
             /* absolute reference */
-			a = get_expression(str, 0);
+			a = get_expression(str, 0, 0);
 			if (pass) 
             {  
                 /* determine address */
-				a = get_address(str);
+				a = get_address(str,0);
 				if (rel[sym->addr] >= 0) { /* Relative branch */
 					if (vidx)
 						error("Illegal operand for relative branch", 1);
@@ -1576,7 +1589,7 @@ int do_xword(int tp) {
       if (!pass)
         pc+=2;
       else {
-        a=get_address(buf);
+        a=get_address(buf,0);
         put_word(a+add,tp);
       }
       break;
@@ -1865,7 +1878,7 @@ int skip_if()
                 str = get_nxt_word(PARSE_LINE_REST);
                 squeeze_str(str);
                 eq = 0;
-                evaledExpression = get_expression(str, 1);
+                evaledExpression = get_expression(str, 1, 0);
                 if (evaledExpression)
                 {
                     // This is the part to process
@@ -1912,7 +1925,7 @@ void do_long_jump(symbol* sym)
     }
 
     str = get_nxt_word(PARSE_NEXT_LINE);
-    addr = get_expression(str, 0);
+    addr = get_expression(str, 0, 0);
 
     if (pass == 0)
     {
@@ -2005,6 +2018,285 @@ void do_long_jump(symbol* sym)
             }
         }
     }
+}
+
+/*=========================================================================*
+  function do_trig(int cmd)
+  parameter cmd: indicates type
+  First parameter is < or > or skipped
+  < = Low byte
+  > = High byte
+  If left out or = then word in LSB, HSB format
+
+     39- .SIN [< >,] angle, steps, scale
+     40- .COS 
+
+  processes a trig command
+ *=========================================================================*/
+int do_trig(int cmd)
+{
+    char* str, * look;
+    char buf[256];
+    int angle, steps, scale;
+    int length;
+    int currentPC = 0;        /* current PC*/
+    int c = 0;
+
+    int outputType = 0;     // 0 = word (low-high), 1=Low, 2=High
+    angle = 0;
+    steps = 256;
+    scale = 8000;
+
+    if (!init_pc)
+        error("No initial address specified.", 1);
+
+    // Get the rest of the line and trim front and back
+    str = get_nxt_word(PARSE_LINE_REST);
+    while (ISSPACE(*str))
+        str++;
+    look = str + strlen(str) - 1;
+    while (ISSPACE(*look)) {
+        *look = 0;
+        look--;
+    }
+    look = str;
+
+    // Check for Low(<), High(>) or Word(=) modifier
+    if (*look == '<')
+    {
+        outputType = 1; // Low
+        length = to_comma(look, buf);
+        look = look + length;
+    }
+    if (*look == '>')
+    {
+        outputType = 2; // High
+        length = to_comma(look, buf);
+        look = look + length;
+    }
+    if (*look == '=')
+    {
+        outputType = 0; // word (LSB, MSB)
+        length = to_comma(look, buf);
+        look = look + length;
+    }
+
+    // Get param 1 = angle
+    if (*look)
+    {
+        length = to_comma(look, buf);
+        look = look + length;
+        angle = get_expression(buf, 1, 0);
+    }
+    else {
+        error("No angle parameter", 1);
+    }
+
+    // Get param 2 = steps
+    if (*look)
+    {
+        length = to_comma(look, buf);
+        look = look + length;
+        steps = get_expression(buf, 1, 0);
+    }
+    else {
+        error("No steps parameter", 1);
+    }
+
+	// Get param 3 = scale
+	if (*look)
+	{
+		length = to_comma(look, buf);
+		look = look + length;
+		scale = get_expression(buf, 1, 0);
+	}
+	else {
+		error("No scale parameter", 1);
+	}
+    
+    // On pass 0 just note the command length (1 or 2 bytes)
+    if (pass == 0)
+    {
+        pc += outputType == 0 ? 2 : 1;
+        return 0;
+    }
+
+    if (verbose) {
+        print_pc();
+    }
+
+    // Not one pass 0
+    short result = 0;
+    switch (cmd) {
+        case DOT_SIN:
+            result = (short)((sin((double)angle * 2.0 * 3.14159265359 / (double)steps) * scale)+0.5 );
+            break;
+
+        case DOT_COS:
+            result = (short)((cos((double)angle * 2.0 * 3.14159265359 / (double)steps) * scale)+0.5 );
+            break;
+    }
+    short val = 0;
+    switch (outputType) {
+        case 0:
+            val = result & 0xFFFF;
+            put_word(val, 0); // lo-hi format
+            sprintf(buf, "\t%d 0x%04X", val, val);
+            break;
+
+        case 1:
+            val = result & 0xFF;
+            put_byte(val);
+            sprintf(buf, "\t%d 0x%02X", val, val);
+            break;
+
+        case 2:
+            val = (result >> 8) & 0xFF;
+            put_byte(val);
+            sprintf(buf, "\t%d 0x%02X", val, val);
+            break;
+    }
+    if (pass && verbose) 
+    {
+        aprintf("%s %s ;(%d,%d,%d)=%s\n", outline, get_nxt_word(PARSE_CURRENT_LINE), angle, steps, scale, buf);
+        outline[0] = 0;
+    }
+
+    return 0;
+}
+
+/*=========================================================================*
+  function do_float_expr(int cmd)
+  parameter cmd: indicates type
+  Parse a float expression and either store it as a 8 or 16-bit unsigned byte/int
+ *=========================================================================*/
+int do_float_expr(int cmd)
+{
+    char* str, * look;
+    char buf[256];
+    int d, hasPrintedPC, p;
+
+    if (!init_pc)
+        error("No initial address specified.", 1);
+
+    // Trim front and back of expression
+    str = get_nxt_word(PARSE_LINE_REST);
+    while (ISSPACE(*str))
+        str++;
+    look = str + strlen(str) - 1;
+    while (ISSPACE(*look)) {
+        *look = 0;
+        look--;
+    }
+
+    look = str;
+    p = hasPrintedPC = 0;
+    while (*look) 
+    {
+        if (pass && verbose) 
+        {
+            if (!hasPrintedPC) 
+            {
+                print_pc();
+                hasPrintedPC++;
+            }
+            hasPrintedPC++;
+        }
+
+        d = to_comma(look, buf);
+        look = look + d;
+        float val = 0;
+        if (!pass)
+        {
+            switch (cmd)
+            {
+                case DOT_FLOAT_2_U16_LH:
+                case DOT_FLOAT_2_U16_HL: pc += 2; break;
+                case DOT_FLOAT_2_U8: pc += 1; break;
+                default:
+                    error("Coding error: Unknown command type in do_float_expr", 1);
+                    return 0;
+            }
+        }
+        else
+        {
+            // Parse the buf into a float expression
+            val = get_float_expression(buf, 1);
+            switch (cmd)
+            {
+                case DOT_FLOAT_2_U16_LH: 
+                {
+                    put_word((unsigned short)val, STORE_LO_HI);
+                    break;
+                }
+                case DOT_FLOAT_2_U16_HL:
+                {
+                    put_word((unsigned short)val, STORE_HI_LO);
+                    break;
+                }
+                case DOT_FLOAT_2_U8:
+                {
+                    put_byte((unsigned char)val);
+                    break;
+                }
+            }
+        }
+
+        if (pass && verbose && hasPrintedPC == 2) {
+            if (!p) 
+            {
+                aprintf("%s %s %d %x\n", outline, get_nxt_word(PARSE_CURRENT_LINE), (int)val, (int)val);
+                p = 1;
+            }
+            else {
+                aprintf("%s\n", outline);
+            }
+            outline[0] = 0;
+            hasPrintedPC = 0;
+        }
+    }
+
+    if (pass && verbose && hasPrintedPC) 
+    {
+        if (!p) {
+            aprintf("%s %s\n", outline, get_nxt_word(PARSE_CURRENT_LINE));
+        }
+        else {
+            aprintf("%s\n", outline);
+        }
+    }
+    outline[0] = 0;
+    return 1;
+}
+
+/*=========================================================================*
+*=========================================================================*/
+void doRunInitCommand(symbol* sym)
+{
+    if (verbose && pass)
+        aprintf("\n");
+
+    // Start a new bank to make sure it gets written on its own
+    ++bankID;
+    activeBank = get_bank(bankID, bankID);
+
+    init_pc = 1;
+	switch (sym->addr)
+	{
+		case DOT_RUN:
+			pc = 0x2e0;
+			saveNamedMemoryRegion(pc, "RUN");
+			break;
+		case DOT_INIT:
+			pc = 0x2e2;
+			saveNamedMemoryRegion(pc, "INIT");
+			break;
+		default:
+			error("Illegal .rin or .init command", 1);
+			break;
+	}
+
+    do_xword(sym->addr);
 }
 
 /*=========================================================================*
@@ -2107,7 +2399,7 @@ int proc_sym(symbol *sym)
                     str = get_nxt_word(PARSE_LINE_REST);
                     squeeze_str(str);
                     eq = 0;
-                    addr = get_expression(str, 1);
+                    addr = get_expression(str, 1, 0);
                     if (addr)
                         doneIfPart[dotIfLevel] = 1;
                     else
@@ -2211,7 +2503,7 @@ int proc_sym(symbol *sym)
                     if ((!eq) || (eq == 2)) {
                         error("Malformed * operator.", 1);
                     }
-                    if ((verbose) && (pass))
+                    if (verbose && pass)
                         aprintf("\n");
                     eq = 0;
                     str = get_nxt_word(PARSE_LINE_REST);
@@ -2227,16 +2519,16 @@ int proc_sym(symbol *sym)
                     if (str[0] == '*') {
                         // Relative adjustment
                         if (!init_pc)
-                            error("No inital address specified.", 1);
+                            error("No initial address specified.", 1);
                         if (str[1] != '+')
                             error("Illegal relative adjustment.", 1);
                         str[0] = '0';
-                        addr = get_expression(str, 1);
+                        addr = get_expression(str, 1, 0);
                         pc = pc + addr;
                     }
                     else {            /* Absolute value */
                         init_pc = 1;
-                        addr = get_expression(str, 1);
+                        addr = get_expression(str, 1, 0);
                         pc = addr;
                     }
                     if (regionName && lineDup)
@@ -2251,6 +2543,19 @@ int proc_sym(symbol *sym)
                         if (lastInvComma) *lastInvComma = 0;
                         saveNamedMemoryRegion(pc, regionName);
                     }
+                    if (lineDup)
+                        free(lineDup);
+					if (opt.autoBankMode)
+					{
+						// In MAC/65 mode. Every org is a new bank
+                        ++bankID;
+						activeBank = get_bank(bankID, bankID);
+						if (pass && (verbose & 1)) {
+							char txtBuffer[256];
+							sprintf(txtBuffer, "Autobank: Using bank %d\n", bankID);
+							error(txtBuffer, 0);
+						}
+					}
                     break;
                 }
                 case DOT_ENDM:  /* .ENDM */
@@ -2266,7 +2571,7 @@ int proc_sym(symbol *sym)
                 case DOT_DS:  /* .DS directive */
                     str = get_nxt_word(PARSE_LINE_REST);
                     squeeze_str(str);
-                    addr = get_expression(str, 1);
+                    addr = get_expression(str, 1, 0);
                     pc = pc + addr;
                     break;
                 case DOT_INCBIN: /* .INCBIN */
@@ -2289,10 +2594,10 @@ int proc_sym(symbol *sym)
                     break;
                 case DOT_DC: /* .DC */
                     str = get_nxt_word(PARSE_NEXT_LINE);
-                    addr = get_expression(str, 1);
+                    addr = get_expression(str, 1, 0);
 
                     str = get_nxt_word(PARSE_NEXT_LINE);
-                    stor = get_expression(str, 1);
+                    stor = get_expression(str, 1, 0);
 
                     for (i = 0; i < addr; i++) {
                         if ((verbose) && (pass) && (!(i & 3))) {
@@ -2310,67 +2615,83 @@ int proc_sym(symbol *sym)
                         aprintf("%s\n", outline);
                     outline[0] = 0;
                     break;
-                case DOT_BANK: { /* .BANK */
-                    unsigned short symbolID = 0;
-                    int p1, p2;
+				case DOT_BANK: {
+					/* .BANK [Bank#] [,ReportedBank#] */
+					unsigned short reportedBankNr = 0;
+					int param1 = -1;
+					int param2 = -1;
 
-                    p1 = p2 = -1;
-                    str = get_nxt_word(PARSE_PEEK_LINE_REST);
-                    if (strlen(str)) {
-                        squeeze_str(str);
-                        if (str[0] == ',')
-                            p2 = -2;
+                    if (opt.autoBankMode)
+                    {
+                        error(".BANK not allowed in -a/-mac65 (autobank) mode", 1);
+                    }
 
-                        get_nxt_word(PARSE_REPLACE_COMMAS);
-                        str = get_nxt_word(PARSE_NEXT_WORD);
-                        if (strlen(str)) {
-                            squeeze_str(str);
-                            if (strlen(str)) {
-                                p1 = get_expression(str, 1);
-                            }
-                            str = get_nxt_word(PARSE_NEXT_WORD);
-                            if (strlen(str)) {
-                                squeeze_str(str);
-                                if (strlen(str)) {
-                                    p2 = get_expression(str, 1);
-                                }
-                            }
-                            if (p2 > 0) {
-                                bankID = p1;
-                                symbolID = p2;
-                            }
-                            else if (p2 == -1) {
-                                bankID = symbolID = p1;
-                            }
-                            else {
-                                bankID++;
-                                symbolID = p1;
-                            }
+					str = get_nxt_word(PARSE_PEEK_LINE_REST);
+					if (strlen(str)) {
+                        // There are parameters for .BANK 
+						squeeze_str(str);       // Remove all spaces
+						if (str[0] == ',')      // If the first char in the string is ',' then there is no BankNr parameter
+							param2 = -2;        // Indicate that there is a number for param2
+
+						get_nxt_word(PARSE_REPLACE_COMMAS);
+						str = get_nxt_word(PARSE_NEXT_WORD);
+						if (strlen(str)) {
+                            // Get the 1st parameter
+							squeeze_str(str);
+							if (strlen(str)) {
+								param1 = get_expression(str, 1, 0);
+							}
+							str = get_nxt_word(PARSE_NEXT_WORD);
+							if (strlen(str)) {
+                                // Get the 2nd parameter
+								squeeze_str(str);
+								if (strlen(str)) {
+									param2 = get_expression(str, 1, 0);
+								}
+							}
+							if (param2 > 0) {
+								bankID = param1;
+								reportedBankNr = (unsigned short)param2;
+							}
+							else if (param2 == -1) {
+                                bankID = param1;
+								reportedBankNr = (unsigned short)param1;
+							}
+							else {
+								bankID++;
+								reportedBankNr = (unsigned short)param1;
+							}
+						}
+					}
+					else {
+                        // No parameters supplied to .BANK
+                        // Advance the bank # and use the same # for reporting.
+						bankID++;
+						reportedBankNr = bankID;
+					}
+					if (pass) {
+						if (bankID >= 0) {
+							if (verbose & 1) {
+								char txtBuffer[256];
+								sprintf(txtBuffer, "Using bank %d,%d\n", bankID, reportedBankNr);  // NOLINT(cert-err33-c)
+								error(txtBuffer, 0);
+							}
+							activeBank = get_bank(bankID, reportedBankNr);
+						}
+					}
+					else if (bankID >= 0) {
+						activeBank = get_bank(bankID, reportedBankNr);
+                        if (activeBank == NULL)
+                        {
+                            error("Cannot allocate memory snapshot.", 1);
                         }
-                    }
-                    else {
-                        bankID++;
-                        symbolID = bankID;
-                    }
-                    if (pass) {
-                        if (bankID >= 0) {
-                            if (verbose & 1) {
-                                char buf[256];
-                                sprintf(buf, "Using bank %d,%d\n", bankID, symbolID);
-                                error(buf, 0);
-                            }
-                            activeBank = get_bank(bankID, symbolID);
-                        }
-                    }
-                    else if (bankID >= 0) {
-                        activeBank = get_bank(bankID, symbolID);
-                    }
-                    /* Skip for now... */
-                    do {
-                        str = get_nxt_word(PARSE_NEXT_WORD);
-                    } while (strlen(str));
-                    break;
-                }
+					}
+					/* Skip for now... */
+					do {
+						str = get_nxt_word(PARSE_NEXT_WORD);
+					} while (strlen(str));
+					break;
+				}
                 case DOT_ALIGN: { /* .ALIGN */
                     int ok = 0;
                     if (!init_pc)
@@ -2381,7 +2702,7 @@ int proc_sym(symbol *sym)
                         error("Need to specify an alignment boundary", 1);
                     }
                     init_pc = 1;
-                    addr = get_expression(str, 1);
+                    addr = get_expression(str, 1, 0);
                     /* Valid boundary values are 2^n (n=0-15) */
                     for (i = 0; i < 16; ++i) {
                         if ((1 << i) == (unsigned short)addr) {
@@ -2417,7 +2738,7 @@ int proc_sym(symbol *sym)
                         str = get_nxt_word(PARSE_LINE_REST);
                         squeeze_str(str);
                         eq = 0;
-                        addr = get_expression(str, 1);
+                        addr = get_expression(str, 1, 0);
                         if (addr)
                             doneIfPart[dotIfLevel] = 1;
                         else
@@ -2442,6 +2763,28 @@ int proc_sym(symbol *sym)
                     do_long_jump(sym);
                     break;
                 }
+                case DOT_SIN:
+                case DOT_COS:
+                {
+                    do_trig(sym->addr);
+                    break;
+                }
+                case DOT_FLOAT_2_U16_LH:
+                case DOT_FLOAT_2_U16_HL:
+                case DOT_FLOAT_2_U8:
+                {
+                    do_float_expr(sym->addr);
+                    break;
+                }
+                // RUN and INIT shortcuts
+				case DOT_RUN:
+                case DOT_INIT:
+                {
+					// .RUN word  ; * = $2E0 .word ADDRESS
+                    // .INIT word  ; * = $2E2 .word ADDRESS
+                    doRunInitCommand(sym);
+					break;
+				}
                 default:
                     error("Illegal directive.", 1);
                     break;
@@ -2478,9 +2821,9 @@ int proc_sym(symbol *sym)
                 str = get_nxt_word(PARSE_LINE_REST);
                 if (eq == 2) {
                     squeeze_str(str);
-                    addr = get_address(str);
+                    addr = get_address(str,0);
                     sym->addr = addr;
-                    sym->bank = activeBank->sym_id;
+                    sym->bank = activeBank->reportedBankNr;
                 }
                 eq = 0;
             }
@@ -2530,9 +2873,9 @@ int proc_sym(symbol *sym)
                 str = get_nxt_word(PARSE_LINE_REST);
                 if (sym->addr == 0xffff) {  /* allow forward equate references */
                     squeeze_str(str);
-                    addr = get_address(str);
+                    addr = get_address(str,0);
                     sym->addr = addr;
-                    sym->bank = activeBank->sym_id;
+                    sym->bank = activeBank->reportedBankNr;
                     defUnk(sym->name, addr);
                 }
                 eq = 0;
@@ -2547,9 +2890,9 @@ int proc_sym(symbol *sym)
 
                     /* even in first pass allow .= updates for .IFs */
                     squeeze_str(str);
-                    addr = get_address(str);
+                    addr = get_address(str,1);
                     sym->addr = addr;
-                    sym->bank = activeBank->sym_id;
+                    sym->bank = activeBank->reportedBankNr;
                     defUnk(sym->name, addr);
 
                     eq = 0;
@@ -2563,9 +2906,9 @@ int proc_sym(symbol *sym)
                 if (eq == 2) {   /* allow .= updates */
                     str = get_nxt_word(PARSE_LINE_REST);
                     squeeze_str(str);
-                    addr = get_address(str);
+                    addr = get_address(str,1);
                     sym->addr = addr;
-                    sym->bank = activeBank->sym_id;
+                    sym->bank = activeBank->reportedBankNr;
                     defUnk(sym->name, addr);
                     eq = 0;
                 }
@@ -2699,11 +3042,11 @@ int assemble(char *fname) {
  * clear all memory banks
  *=========================================================================*/
 int clear_banks() {
-  memBank *walk=banks;
+  MemoryBank *walk=memoryBanks;
   while(walk) {
     memset(walk->memmap,0,65536);
     memset(walk->bitmap,0,8192);
-    walk=walk->nxt;
+    walk=walk->next;
   }
   bsize=0;
   return 1;
@@ -2716,10 +3059,10 @@ int clear_banks() {
  *=========================================================================*/
 int count_banks() {
   int num=0;
-  memBank *walk=banks;
+  MemoryBank *walk=memoryBanks;
   while(walk) {
     num++;
-    walk=walk->nxt;
+    walk=walk->next;
   }
   return num;
 }
@@ -2776,7 +3119,7 @@ int save_binary(char *fname) {
   FILE *out;
   unsigned char *scan, *end;
   int len,a,b,i,walk,start;
-  memBank *walkBank=activeBank;
+  MemoryBank *walkBank=activeBank;
 
   out=fopen(fname,"wb");
   if (!out)
@@ -2811,7 +3154,7 @@ int save_binary(char *fname) {
       }
       scan++;
     }
-    walkBank=walkBank->nxt;
+    walkBank=walkBank->next;
   }
   fclose(out);
   if (count_banks()>1)
@@ -2832,7 +3175,7 @@ int save_raw(char *fname, unsigned char fillByte) {
   FILE *out;
   unsigned char *scan, *end;
   int map,last,a,b,i,walk,start,banks,bankNum;
-  memBank *walkBank=activeBank;
+  MemoryBank *walkBank=activeBank;
 
   out=fopen(fname,"wb");
   if (!out)
@@ -2875,7 +3218,7 @@ int save_raw(char *fname, unsigned char fillByte) {
 
     fwrite(walkBank->memmap+start,1,last-start+1,out);
     bankNum++;
-    walkBank=walkBank->nxt;
+    walkBank=walkBank->next;
   }
   fclose(out);
 
@@ -2920,7 +3263,7 @@ void process_predef(str_list *head) {
         sym->addr = 0; /* -Dfoo= defines foo to 0 (like cpp *doesn't*!) */
         *(svalue-1) = '\0';
       } else {
-        sym->addr = get_address(svalue);
+        sym->addr = get_address(svalue,0);
         *(svalue-1) = '\0';
       }
     }
@@ -2963,7 +3306,7 @@ int showMemoryLayout()
 {
 	unsigned char* scan, * end;
 	int len, a, b, i, walk, start;
-	memBank* walkBank = activeBank;
+	MemoryBank* walkBank = activeBank;
 
     fprintf(stderr, "Memory Map\n----------\n");
 
@@ -3005,7 +3348,7 @@ int showMemoryLayout()
 			}
 			scan++;
 		}
-		walkBank = walkBank->nxt;
+		walkBank = walkBank->next;
 	}
 	if (count_banks() > 1)
 		fprintf(stderr, "\nCompiled %d banks\n", count_banks());
@@ -3037,6 +3380,7 @@ void showHelp(char *executable)
     fputs("         -hv[clLm]: dumps all info for VSCode plugin. c=constants, l=labels (primary/no?), L=labels (ALL), m=macros\n", stderr);
     fputs("         -noshowmem: Do not dump the memory layout\n", stderr);
     fputs("         -eval: Just run the assembler producing data but don't write the output to disc\n", stderr);
+    fputs("         -a OR -mac65: autobank: Put each segment in its own bank. For Mac/65 compatibility\n", stderr); 
 
 }
 
@@ -3082,11 +3426,15 @@ int main(int argc, char* argv[])
 			opt.ill = 1;
 		else if (!STRCASECMP(argv[i], "-mae"))
 			opt.MAElocals = 1;
-		else if (!STRCASECMP(argv[i], "-r"))
+        else if (!STRCASECMP(argv[i], "-mac65"))
+            opt.autoBankMode = 1;
+        else if (!STRCASECMP(argv[i], "-a"))
+            opt.autoBankMode = 1;
+        else if (!STRCASECMP(argv[i], "-r"))
 			opt.savetp = 2;
 		else if (!STRNCASECMP(argv[i], "-f", 2)) {
 			if (strlen(argv[i]) > 2)
-				opt.fillByte = (unsigned char)get_address(argv[i] + 2);
+				opt.fillByte = (unsigned char)get_address(argv[i] + 2, 0);
 			else {
 				fprintf(stderr, "Missing fill value for -f (example: -f0)\n");
 			}
@@ -3255,7 +3603,7 @@ int main(int argc, char* argv[])
 		listFilename[0] = 0;
 	}
 
-	activeBank = banks;
+	activeBank = memoryBanks;
 
 	if (!strlen(outfile)) {
 		fname[find_extension(fname)] = 0;

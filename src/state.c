@@ -6,7 +6,7 @@
  * This is based on the state file as defined in Atari800-0.9.8g,
  * the file specification may change as time goes on.
  *
- * This code is largely expirimental, but has been tested successfully with
+ * This code is largely experimental, but has been tested successfully with
  * Atari800Win2.5c and Atari800-0.9.8g
  *===========================================================================
  * Created: 12/19/98 mws  (I/O code based off of source from Atari800-0.9.8g)

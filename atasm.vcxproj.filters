@@ -39,6 +39,12 @@
     <ClCompile Include="src\symbol.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\parse_float.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\setfloatparse.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\atasm_err.h">

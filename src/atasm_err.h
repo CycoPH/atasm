@@ -40,6 +40,7 @@ typedef struct options {  /* structure to hold user preferences */
   int symbolDumpOptions;	/* 0 = no restriction, use ".opt [no] SYMDUMP" to turn this flag on or off */
   int showMemory;			// Output the memory layout of the code after compilation
   int evalOnly;				// 1 then NOTHING is written to the final output file
+  int autoBankMode;			// 1 then every org (*=) is a new bank
 } options;
 
 extern options opt;

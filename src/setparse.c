@@ -165,21 +165,28 @@ symbol *validate_symbol(char *str) {
   return s;
 }
 /*=========================================================================*
-  function get_expression(char *str, int tp)
+  function get_expression(char *str, int tp, int withRollover)
   parameters: str - the expression to parse
               tp  - flag error (1=yes, 0=return 0xffff)
+              withRollover - 1 = 65535+1 = 0, otherwise stay at 65535
   returns the value of the expression
 
   This function calculates the value of an expression, or generates an error
  *=========================================================================*/
-unsigned short get_expression(char* str, int tp)
+unsigned short get_expression(char* str, int tp, int withRollover)
 {
 	// Bug #7 Error calculating address with forward references
 	// The problem is that a forward reference can wrap around to (65535+1) = 0
 	// In that case the assembler looks for a zero-page access and things start going wrong
 	int expr = get_signed_expression(str, tp);
-	if (expr > 65535)
+
+	if (withRollover == 0 && expr > 65535)
         return 65535;
+    if (withRollover != 0)
+    {
+        int a = 0;
+    }
+
 	return (unsigned short)expr;
 }
 
