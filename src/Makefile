@@ -19,7 +19,7 @@ UNIX    = -DUNIX
 #CFLAGS  = -g -Wall $(USEZ) $(DOS) $(UNIX) $(ARCH)
 CFLAGS  = -Wall $(USEZ) $(DOS) $(UNIX) -O3 -fomit-frame-pointer $(ARCH)
 
-L       =  $(ZLIB)
+L       =  $(ZLIB) -lm
 CC      = gcc
 DESTDIR	= /usr/local/bin
 MANDIR	= /usr/local/man/man1
@@ -30,7 +30,7 @@ DOCDIR	= /usr/local/doc/atasm
 
 all:    prog
 
-OBJS    = asm.o symbol.o parser.o setparse.o state.o dimage.o inc_path.o crc32.o atasm_err.o state2.o
+OBJS    = asm.o symbol.o parser.o setparse.o state.o dimage.o inc_path.o crc32.o atasm_err.o state2.o parse_float.o setfloatparse.o
 
 asm.o: ops.h directive.h symbol.h inc_path.h atasm_err.h
 atasm_err.o: atasm_err.h symbol.h
