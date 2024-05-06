@@ -36,7 +36,7 @@ int yyparse();
 extern int rval;
 int vnum, nums[64];
 
-char *parse_string;
+static char *parse_string;
 /*=========================================================================*
   function yylex()
 

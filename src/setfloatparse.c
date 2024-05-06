@@ -41,7 +41,7 @@ float fnums[64];
 extern int get_dotname(char* src, char* dst);
 extern symbol* validate_symbol(char* str);
 
-char* parse_string;
+static char* parse_string;
 /*=========================================================================*
   function floatlex()
 
