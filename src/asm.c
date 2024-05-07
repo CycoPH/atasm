@@ -2039,8 +2039,6 @@ int do_trig(int cmd)
     char buf[256];
     int angle, steps, scale;
     int length;
-    int currentPC = 0;        /* current PC*/
-    int c = 0;
 
     int outputType = 0;     // 0 = word (low-high), 1=Low, 2=High
     angle = 0;

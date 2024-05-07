@@ -78,8 +78,7 @@ int floatlex()
 float parse_float_expr(char* a)
 {
 	int num;
-	char expr[80], * look, * walk, * n;
-	char* theEnd = expr + sizeof(expr);
+	char expr[80], * look, * walk;
 
 	fvnum = num = 0;
 	look = a;
@@ -87,7 +86,6 @@ float parse_float_expr(char* a)
 	while (*look) {
 		if (ISDIGIT(*look)) {
 			*walk++ = 'v';
-			n = walk;
 			float result = strtof(look, &look);
 			fnums[num] = result;
 			num++;

@@ -1,3 +1,5 @@
+#include <string.h>
+int floaterror(char* err);
 int floatlex();
 void error(char* s, int tp);
 extern float fnums[];
