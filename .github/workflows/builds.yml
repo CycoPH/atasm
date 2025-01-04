@@ -17,10 +17,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: make
-      if: matrix.os != 'windows-latest'
-        run: |
-          cd src
-          make
+      run: |
+        cd src
+        make
     # Upload the end-user binary artifact
     - uses: actions/upload-artifact@v3
       with:
