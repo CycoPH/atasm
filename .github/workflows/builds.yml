@@ -51,6 +51,6 @@ jobs:
       # Upload the end-user binary artifact
       - uses: actions/upload-artifact@v4
         with:
-          name: atasm-x64.exe
+          name: atasm-win64
           path: bin/atasm.exe
           retention-days: 1
