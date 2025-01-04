@@ -1,0 +1,29 @@
+name: Production Builds
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest, macos-13]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: make
+      if: matrix.os != 'windows-latest'
+        run: |
+          cd src
+          make
+    # Upload the end-user binary artifact
+    - uses: actions/upload-artifact@v3
+      with:
+        name: atasm-${{ matrix.os }}
+        path: src/atasm
+        retention-days: 1
