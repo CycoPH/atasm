@@ -51,6 +51,6 @@ jobs:
       # Upload the end-user binary artifact
       - uses: actions/upload-artifact@v4
         with:
-          name: atasm-${{ matrix.os }}.exe
+          name: atasm-x64.exe
           path: bin/atasm.exe
           retention-days: 1
