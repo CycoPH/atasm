@@ -1,5 +1,5 @@
 /*===========================================================================
- * Project: ATasm: atari cross assembler
+ * Project: ATasm: Atari cross-assembler
  * File: state.c
  *
  * Contains code for reading and saving machine state

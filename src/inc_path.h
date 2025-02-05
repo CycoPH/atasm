@@ -1,5 +1,5 @@
 /*==========================================================================
- * Project: atari cross assembler
+ * Project: Atari cross-assembler
  * File: inc_path.h
  *
  * Contains prototypes for searching include paths

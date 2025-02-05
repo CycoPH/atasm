@@ -1,5 +1,5 @@
 /*==========================================================================
- * Project: atari cross assembler
+ * Project: Atari cross-assembler
  * File: directive.h
  *
  * Contains all assembly directives

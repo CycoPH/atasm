@@ -1,8 +1,8 @@
 /*==========================================================================
- * Project: atari cross assembler
+ * Project: Atari cross-assembler
  * File: setparse.c
  *
- * Contains the routines to intilize expression parsing
+ * Contains the routines to initialize expression parsing
  *==========================================================================
  * Created: 3/26/98 mws
  * Modifications:

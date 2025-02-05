@@ -1,5 +1,5 @@
 /*==========================================================================
- * Project: atari cross assembler
+ * Project: Atari cross-assembler
  * File: symbol.h
  *
  * Contains typedefs and prototypes for the assembler
@@ -22,7 +22,7 @@
 #define SYMBOL_H
 
 #define MAJOR_VER 1
-#define MINOR_VER 25
+#define MINOR_VER 26
 #define BETA_VER 0
 
  /*==========================================================================*/
@@ -251,7 +251,7 @@ void addUnk(char* unk);
 unkLabel* isUnk(char* unk);
 void defUnk(char* unk, unsigned short addr);
 
-int clear_banks();
+int clear_banks(void);
 void kill_banks();
 
 longJump* getLongJumpReference(char* fileInfo, int lineNumber);

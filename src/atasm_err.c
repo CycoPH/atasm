@@ -1,5 +1,5 @@
 /*==========================================================================
- * Project: atari cross assembler
+ * Project: Atari cross-assembler
  * File: atasm_err.c
  *
  * Contains error handler

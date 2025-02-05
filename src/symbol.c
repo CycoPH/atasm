@@ -1,5 +1,5 @@
 /*==========================================================================
- * Project: atari cross assembler
+ * Project: Atari cross-assembler
  * File: symbol.c
  *
  * Contains symbol table and macro code
@@ -19,7 +19,7 @@
  *    05/01/10   mws  add tracking of bank for addrs
  *==========================================================================*
  * TODO: Nothing
- *  When instatiating a macro, prepend label with number and macro name...
+ *  When instantiating a macro, prepend label with number and macro name...
  *
  *==========================================================================
  *  This program is free software; you can redistribute it and/or modify
@@ -194,7 +194,7 @@ void cleanUnk() {
  * function fixRepass
  * parameters: none
  *
- * clear symbol table if multipass is necessary
+ * clear symbol table if multi-pass is necessary
  *=========================================================================*/
 void fixRepass() {
 	symbol* sym;
@@ -758,7 +758,7 @@ int dump_assembler_header(char* header_fname)
 	}
 	head = sym = sort(head, 1);
 
-	/* Lets find the max length of the BASE_SYMBOL entry */
+	/* Let's find the max length of the BASE_SYMBOL entry */
 	maxLength = 0;
 
 	while (sym)
@@ -1035,10 +1035,10 @@ int macro_subst(char* name, char* in, macro_line* args, int max) {
 	walk = buf;
 	look = in;
 	/* Format for macro subst:
-	   %<num>:  parameter is an expression  (paramter # is decimal)
-	   %$<num>: parameter is a string       (paramter # is decimal)
-	   %(LABEL): parameter is an expression (paramter # is label addr)
-	   %$(LABEL): parameter is a string     (paramter # is label addr)
+	   %<num>:  parameter is an expression  (parameter # is decimal)
+	   %$<num>: parameter is a string       (parameter # is decimal)
+	   %(LABEL): parameter is an expression (parameter # is label addr)
+	   %$(LABEL): parameter is a string     (parameter # is label addr)
 	*/
 	while (*look) {
 		if (*look == '%') { /* time to substitute a paramter */
@@ -1254,10 +1254,10 @@ int create_macro(symbol* sym) {
 }
 /*=========================================================================*
  * function macro_param(macro_call *mc, char *cmd)
- * parameters: mc- the maco instance
+ * parameters: mc- the macro instance
  *             cmd- the command line
  *
- *  builds the arg command table for a particular macro invokation
+ *  builds the arg command table for a particular macro invocation
  *=========================================================================*/
 int macro_param(macro_call* mc, char* cmd) {
 	int n;
@@ -1276,12 +1276,12 @@ int macro_param(macro_call* mc, char* cmd) {
 		n++;
 		line = (macro_line*)malloc(sizeof(macro_line));
 		if (!line) {
-			error("Out of memory allocting macro paramter.", 1);
+			error("Out of memory allocating macro parameter.", 1);
 		}
 		line->nxt = 0;
 		line->line = (char*)malloc(strlen(param) + 1);
 		if (!line->line) {
-			error("Out of memory allocting macro paramter.", 1);
+			error("Out of memory allocating macro parameter.", 1);
 		}
 		strcpy(line->line, param);
 		if (!mc->cmd)
@@ -1296,18 +1296,19 @@ int macro_param(macro_call* mc, char* cmd) {
 /*=========================================================================*
  * function skip_macro()
  *
- * this skips a macro defintion
+ * this skips a macro definition
  *=========================================================================*/
-int skip_macro() {
-	char* str;
-
-	while (1) {
-		str = get_nxt_word(PARSE_NEXT_LINE);
+int skip_macro()
+{
+	while (1) 
+	{
+		char* str = get_nxt_word(PARSE_NEXT_LINE);
 		if (!STRCASECMP(str, ".ENDM"))
 			break;
 	}
 	return 1;
 }
+
 /*=========================================================================*
  * function clear_ref()
  *
@@ -1413,7 +1414,7 @@ int do_rept(symbol* sym) {
 	}
 	rept = (macro_call*)malloc(sizeof(macro_call));
 	if (rept == NULL)
-		error("Error allocting memory for repeat.", 1);
+		error("Error allocating memory for repeat.", 1);
 	rept->argc = 0;
 	rept->orig = m;
 	rept->cmd = NULL;

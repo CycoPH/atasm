@@ -1,5 +1,5 @@
 /*==========================================================================
- * Project: ATasm: atari cross assembler
+ * Project: ATasm: Atari cross-assembler
  * File: dimage.c
  *
  * original xfd disk routines based on xfd_tools package by

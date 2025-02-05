@@ -1,5 +1,5 @@
 ﻿============================================================================
-ATasm v1.25
+ATasm v1.26
 A mostly Mac/65 compatible 6502 cross-assembler
 
 Copyright (c) 1998-2022 Mark Schmelzenbach
@@ -278,7 +278,8 @@ Version 1.25 - Added -a / -mac65 option
 				boot: .....
 				.RUN boot
 
-				And the assembled code will start running @ $2000				
+				And the assembled code will start running @ $2000
+Version 1.26 - fixed the parsing of the -hvclm and -hvcLm command line parameters
 
 ============================================================================
 Chapter 1: ATasm

@@ -1,5 +1,5 @@
 /*==========================================================================
- * Project: ATasm: atari cross assembler
+ * Project: ATasm: Atari cross-assembler
  * File: inc_path.c
  *
  * Provides a linked list store search directories for .INCLUDEd files.
@@ -35,7 +35,7 @@
 #include "atasm_err.h"
 
 /*=========================================================================*
-  funtion free_str_list
+  function free_str_list
   parameters: str - the head of the list to free
 
   This cleans up a string list
@@ -72,7 +72,7 @@ str_list *init_include() {
 }
 
 /*=========================================================================*
-  funtion append_include
+  function append_include
   parameters: head - the current list head;
               path - the path to append
 
@@ -102,7 +102,7 @@ void append_include(str_list *head, char *path) {
 }
 
 /*=========================================================================*
-  funtion fopen_include
+  function fopen_include
   parameters: head - the list to search
         fname - the file to open
 

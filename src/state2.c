@@ -1,5 +1,5 @@
 /*===========================================================================
- * Project: ATasm: atari cross assembler
+ * Project: ATasm: Atari cross-assembler
  * File: state2.c
  *
  * Contains code for reading and saving machine snapshot for atari++
@@ -36,7 +36,7 @@
  * function fromhex
  * parameters: txt, pointer to 2 digit hex string
  *
- * this functions returns the value of a 2 digit hex string (case insensitve)
+ * this functions returns the value of a 2 digit hex string (case insensitive)
  *=========================================================================*/
 int fromhex(char *txt) {
   int num;

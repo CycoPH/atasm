@@ -1,5 +1,5 @@
 /*==========================================================================
- * Project: atari cross assembler
+ * Project: Atari cross-assembler
  * File: atasm.h
  *
  * Contains typedefs and prototypes for the assembler

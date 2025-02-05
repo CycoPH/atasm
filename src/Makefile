@@ -1,5 +1,5 @@
 # If you want to use the compressed state files (you do), uncomment
-# the following lines, specifing the path to the zlib header file
+# the following lines, specifying the path to the zlib header file
 # and the library.
 # The zlib library homepage can be found at:
 #   http://www.gzip.org/zlib/
@@ -28,9 +28,10 @@ DOCDIR	= /usr/local/doc/atasm
 .c.o:
 	$(CC) $(CFLAGS) -c $<
 
-all:    prog
+all:    prog verify
 
 OBJS    = asm.o symbol.o parser.o setparse.o state.o dimage.o inc_path.o crc32.o atasm_err.o state2.o parse_float.o setfloatparse.o
+OBJS_V = md5.o verify.o
 
 asm.o: ops.h directive.h symbol.h inc_path.h atasm_err.h
 atasm_err.o: atasm_err.h symbol.h
@@ -43,8 +44,11 @@ symbol.o: symbol.h inc_path.h atasm_err.h
 prog : $(OBJS)
 	$(CC) -o atasm $(OBJS) $(L) $(ARCH)
 
+verify : $(OBJS_V)
+	$(CC) -o verify $(OBJS_V) $(L) $(ARCH)
+
 clean:
-	rm -f *.rej *.o *~ atasm atasm.1 atasm.exe
+	rm -f *.rej *.o *~ atasm atasm.1 atasm.exe verify verify.exe
 	cd ../tests && make clean
 
 test: all

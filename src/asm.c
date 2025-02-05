@@ -1,5 +1,5 @@
 /*==========================================================================
- * Project: ATasm: atari cross assembler
+ * Project: ATasm: Atari cross-assembler
  * File: asm.c
  *
  * Contains the actual code for assembly generation
@@ -51,7 +51,7 @@
  *               this.
  *  05/27/02 mws fixed hideous .incbin error from last release
  *  06/12/02 mws added several zero page -> absolute address operators
- *               (sbc/adc/and/eor/ora/cmp);  Allowed compiliation to
+ *               (sbc/adc/and/eor/ora/cmp);  Allowed compilation to
  *               addresses >$fd00;  Thanks to Manual Polik
  *               (cybergoth@nexgo.de) for finding these!
  *  06/14/02 mws fixed problem with immediate value of a comma: #',
@@ -66,9 +66,9 @@
  *               find typos;
  *               Added interpretation of #$LABEL (with warnings)
  *               Thanks to Maitthias Reichl for finding/suggesting these
- *  08/20/03 mws Fixed a problem with predefinitions
+ *  08/20/03 mws Fixed a problem with pre-definitions
  *  10/08/03 mws Added .SET 6,offset for assembling offset of storage from
- *               the location counter;  Added .BANK directive for cartrige
+ *               the location counter;  Added .BANK directive for cartridge
  *               images (and allows INITAD to work for the first time)
  *               Also Added the .OPT LIST/NO LIST options.  Chris Hutt is
  *               again instrumental in requesting these new features.
@@ -119,7 +119,7 @@
  *              included source files to the 'plugin.json' file located
  *              at the root folder from where atasm starts searching for
  *              source files.  This is to be used my the Atasm-Altirra-Bridge
- *              VSCode plugin to allow you to quickly manouver your code
+ *              VSCode plugin to allow you to quickly maneuver your code
  *              Added modulo/remainder operator. %% or .MOD
  *              You can now say '.byte 15%%10' and it will store the value of 5.
  *
@@ -668,7 +668,7 @@ char *get_nxt_word(int tp) {
         return buf;
       }
       if (!fin)
-        error("No active filehandle.",1);
+        error("No active file handle.",1);
       outline[0]=0;
       memset(line,0,256);
       memset(buf,0,256);
@@ -856,7 +856,7 @@ int put_byte(int b) {
   return 0;
 }
 /*=========================================================================*
-  funtion put_word(int b, int e)
+  function put_word(int b, int e)
   parameters: b - a word to store
         e - flag denoting storage method (0=lo/hi, 1=hi/lo)
 
@@ -889,7 +889,7 @@ int put_word(int b,int e) {
   excess-64 notation representing power of 100.  The upper bit of the
   exponent byte designates the sign of the mantissa portion.  The
   following 5 bytes are the mantissa, in packed BCD form, normalized
-  on a byte boundary (consistant with the powers-of-100 exponent).
+  on a byte boundary (consistent with the powers-of-100 exponent).
 
   This has not been extensively tested!  It works for the examples in
   De Re Atari...but beyond that nothing has been verified
@@ -1206,7 +1206,7 @@ int add_label(char *label) {
   parameters: sym - the opcode
               str - the remaining chars on the line
 
-  This function assembles a given opcode/operand pair, determing the
+  This function assembles a given opcode/operand pair, determining the
   appropriate opcode mode (immediate, indexed, indirect, etc)
  *=========================================================================*/
 int parse_operand(symbol* sym, char* str) 
@@ -1748,7 +1748,7 @@ int do_xbyte(int tp) {
   function get_single(symbol *sym)
   parameters: sym - the opcode to process
 
-  this function assembles single opcodes if appropraite, or continues
+  this function assembles single opcodes if appropriate, or continues
   execution by passing parameters to parse_operand()
  *=========================================================================*/
 int get_single(symbol *sym) {
@@ -2318,7 +2318,7 @@ int proc_sym(symbol *sym)
 		str = get_nxt_word(PEEK_COMMENT);
 		if (str)
 		{
-			// Add the comment to the label
+			// Add comment to label
 			lastLabel->comment = STRDUP(str);
 		}
 		str = NULL;
@@ -2693,7 +2693,7 @@ int proc_sym(symbol *sym)
                 case DOT_ALIGN: { /* .ALIGN */
                     int ok = 0;
                     if (!init_pc)
-                        error("No inital address specified.", 1);
+                        error("No initial address specified.", 1);
                     str = get_nxt_word(PARSE_LINE_REST);
                     squeeze_str(str);
                     if (strlen(str) == 0) {
@@ -2927,39 +2927,39 @@ int proc_sym(symbol *sym)
  *
  * this starts the parsing process
  *=========================================================================*/
-int do_cmd(char *buf) {
-  symbol *sym;
-  int i,len;
+int do_cmd(char *buf)
+{
+	const int len = (int)strlen(buf);
+	for (int i = 0; i < len; i++)
+		buf[i] = TOUPPER(buf[i]);
 
-  len=(int)strlen(buf);
-  for(i=0;i<len;i++)
-    buf[i]=TOUPPER(buf[i]);
+	symbol* sym = findsym(buf);
 
-  sym=findsym(buf);
+	if (sym && (sym->tp == LABEL || sym->tp == EQUATE) && sym->name) {
+		lastLabel = sym;
+	}
 
-  if (sym && (sym->tp == LABEL || sym->tp == EQUATE) && sym->name) {
-      lastLabel = sym;
-  }
- 
-  if ((!sym)||((sym->tp==MACROL)&&(!sym->macroShadow))) {
-    /* must be a label or define */
-    add_label(buf);
-    sym=findsym(buf);
-    lastLabel = sym;
-    if (sym && sym->tp == LABEL && sym->name && sym->name[0] != '?') 
+	if ((!sym) || ((sym->tp == MACROL) && (!sym->macroShadow))) {
+		/* must be a label or define */
+		add_label(buf);
+		sym = findsym(buf);
+		lastLabel = sym;
+		if (sym && sym->tp == LABEL && sym->name && sym->name[0] != '?')
+		{
+			if (!strchr(sym->name, '?'))
+				opt.MAEname = sym->name;
+		}
+	}
+	else
     {
-      if (!strchr(sym->name,'?'))
-        opt.MAEname=sym->name;
-    }
-  } else {
-    proc_sym(sym);
-    if (pass && sym && sym->tp == LABEL) {
-        lastSymbol = sym;
-    }
-    else
-        lastSymbol = NULL;
-  }
-  return 1;
+		proc_sym(sym);
+		if (pass && sym && sym->tp == LABEL) {
+			lastSymbol = sym;
+		}
+		else
+			lastSymbol = NULL;
+	}
+	return 1;
 }
 
 /*=========================================================================*
@@ -2978,68 +2978,71 @@ int init_pass() {
   return 0;
 }
 /*=========================================================================*
- * function assemble(char *fname)
- * parameter fname- file to assemble
+ * function assemble(char *filename)
+ * parameter filename- file to assemble
  *
  * This performs a two pass assembly over the file indicated
  *=========================================================================*/
-int assemble(char *fname) {
-  char *str;
-  int i, ip, zlabels=0;
+int assemble(char *filename)
+{
+	char* str;
+	int i, zlabels = 0;
 
-  for(ip=i=0;i<2;i++) {
-    ip++;
-    init_pass();
-    fprintf(stderr,"Pass %d: ",ip);
-    fflush(stderr);
-    open_file(fname);
-    do {
-      str=get_nxt_word(PARSE_NEXT_LINE);
-      if (str) {
-        do_cmd(str);
-      }
-      if (repass) {
-        fixRepass();
-        while(get_nxt_word(PARSE_NEXT_LINE))
-          ;
-        break;
-      }
-    } while(str);
+	for (int ip = i = 0; i < 2; i++) 
+    {
+		ip++;
+		init_pass();
+		fprintf(stderr, "Pass %d: ", ip);
+		fflush(stderr);
+		open_file(filename);
+		do {
+			str = get_nxt_word(PARSE_NEXT_LINE);
+			if (str) {
+				do_cmd(str);
+			}
+			if (repass) {
+				fixRepass();
+				while (get_nxt_word(PARSE_NEXT_LINE))
+					;
+				break;
+			}
+		} while (str);
 
-    if (repass) {
-      zlabels++;
-      i=-1;
-      pass=repass=double_fwd=0;
-      continue;
-    }
-    if (double_fwd) {
-      i=-1;
-      pass=repass=double_fwd=0;
-      continue;
-    }
-    if ((verbose)&&(pass==1))
-      fprintf(stderr,"\n");
-    if ((!verbose)||(!pass)) {
-      fprintf(stderr,"Success. (%d warnings",warn);
-      if (zlabels) {
-        fprintf(stderr,"/%d label",zlabels);
-        if (zlabels>1)
-          fprintf(stderr,"s");
-        fprintf(stderr," resized");
-      }
-      fprintf(stderr,")\n");
-    }
-    pass++;
-  }
-  return 1;
+		if (repass) {
+			zlabels++;
+			i = -1;
+			pass = repass = double_fwd = 0;
+			continue;
+		}
+		if (double_fwd) {
+			i = -1;
+			pass = repass = double_fwd = 0;
+			continue;
+		}
+		if ((verbose) && (pass == 1))
+			fprintf(stderr, "\n");
+		if ((!verbose) || (!pass)) {
+			fprintf(stderr, "Success. (%d warnings", warn);
+			if (zlabels) {
+				fprintf(stderr, "/%d label", zlabels);
+				if (zlabels > 1)
+					fprintf(stderr, "s");
+				fprintf(stderr, " resized");
+			}
+			fprintf(stderr, ")\n");
+		}
+		pass++;
+	}
+	return 1;
 }
+
 /*=========================================================================*
  * function clear_banks()
  * parameter: none
  *
  * clear all memory banks
  *=========================================================================*/
-int clear_banks() {
+int clear_banks(void) {
   MemoryBank *walk=memoryBanks;
   while(walk) {
     memset(walk->memmap,0,65536);
@@ -3379,7 +3382,6 @@ void showHelp(char *executable)
     fputs("         -noshowmem: Do not dump the memory layout\n", stderr);
     fputs("         -eval: Just run the assembler producing data but don't write the output to disc\n", stderr);
     fputs("         -a OR -mac65: autobank: Put each segment in its own bank. For Mac/65 compatibility\n", stderr); 
-
 }
 
 /*=========================================================================*
@@ -3472,16 +3474,24 @@ int main(int argc, char* argv[])
 				create_asm_header_fn = 1;
 			}
 		}
-		else if (!STRNCASECMP(argv[i], "-hv", 3)) {
-			if (strlen(argv[i]) > 3) {
+		else if (!STRNCASECMP(argv[i], "-hv", 3))
+		{
+			if (strlen(argv[i]) > 3)
+			{
 				/* There are special selectors after the -hv switch */
 				/* c = constants, l = labels, m = macros */
 				char* param = argv[i];
 				for (int x = 3; x < (int)strlen(param); ++x) {
+					if (param[x] == 'c') { dumpVSCode |= DUMP_CONSTANTS; }
+					else if (param[x] == 'l') { dumpVSCode |= DUMP_LABELS_PRIMARY; }
+					else if (param[x] == 'L') { dumpVSCode |= DUMP_LABELS_ALL; }
+					else if (param[x] == 'm') { dumpVSCode |= DUMP_MACROS; }
+					/*
 					if (!STRNCASECMP(&param[x], "c", 1)) { dumpVSCode |= DUMP_CONSTANTS; }
 					else if (!STRNCASECMP(&param[x], "l", 1)) { dumpVSCode |= DUMP_LABELS_PRIMARY; }
 					else if (!STRNCASECMP(&param[x], "L", 1)) { dumpVSCode |= DUMP_LABELS_ALL; }
 					else if (!STRNCASECMP(&param[x], "m", 1)) { dumpVSCode |= DUMP_MACROS; }
+					*/
 				}
 				// Hmm, did not select anything useful, so dump it all
 				if (dumpVSCode == DUMP_NOTHING)
