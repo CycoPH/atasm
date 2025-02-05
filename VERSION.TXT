@@ -230,3 +230,6 @@ May 4, 2024
 				.RUN boot
 
 				And the assembled code will start running @ $2000
+
+Feb 5, 2025
+  version 1.25 - fixed the parsing of the -hvclm and -hvcLm command line parameters
