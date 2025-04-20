@@ -232,4 +232,5 @@ May 4, 2024
 				And the assembled code will start running @ $2000
 
 Feb 5, 2025
-  version 1.25 - fixed the parsing of the -hvclm and -hvcLm command line parameters
+  version 1.26 - fixed the parsing of the -hvclm and -hvcLm command line parameters
+  				-l and -s options now produce the same output. -l also includes equates (=)

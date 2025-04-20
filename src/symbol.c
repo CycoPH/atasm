@@ -546,80 +546,92 @@ symbol* sort(symbol* head, int byAddress) {
 }
 /*=========================================================================*
  * function dump_symbols
- * prints out all symbols entered into the symbol table
+ * Prints out all symbols entered into the symbol table
  *=========================================================================*/
-int dump_symbols() {
-	symbol* sym, * head;
-	int n;
-
-	head = linkit();
+int dump_symbols()
+{
+	symbol* head = linkit();
 	if (!head)
 		return 0;
-	head = sym = sort(head, 0);
-	n = 0;
+	symbol* sym = head = sort(head, 0);
+	int n = 0;
 	printf("\nEquates:\n");
-	while (sym) {
+	while (sym)
+	{
 		if (sym->name[0])
-			if (((sym->tp == EQUATE) || (sym->tp == TEQUATE)) && (sym->name[0] != '=')) {
+		{
+			if (((sym->tp == EQUATE) || (sym->tp == TEQUATE)) && (sym->name[0] != '='))
+			{
 				printf("%c%s: %.4x\t\t", (sym->tp == TEQUATE) ? '*' : ' ',
 					sym->name, sym->addr & 0xffff);
 				n++;
-				if (n == 3) {
+				if (n == 3)
+				{
 					printf("\n");
 					n = 0;
 				}
 			}
+		}
 		sym = sym->lnk;
 	}
 	sym = head;
 	printf("\n\nSymbol table:\n");
-	while (sym) {
+	while (sym) 
+	{
 		if (sym->name[0])
-			if ((sym->tp == LABEL) && (sym->name[0] != '=')) {
-				if ((strchr(sym->name, '?')) && (opt.MAElocals))
+		{
+			if ((sym->tp == LABEL) && (sym->name[0] != '='))
+			{
+				if (strchr(sym->name, '?') && opt.MAElocals)
 					;
-				else {
+				else
+				{
 					printf("%s: %.4x\t\t", sym->name, sym->addr & 0xffff);
 					n++;
-					if (n == 3) {
+					if (n == 3)
+					{
 						printf("\n");
 						n = 0;
 					}
 				}
 			}
+		}
 		sym = sym->lnk;
 	}
 	printf("\n");
 	return 0;
 }
+
 /*=========================================================================*
  * function dump_labels
- * prints out all symbols entered into the symbol table in label format
+ * Prints out all symbols entered into the symbol table in label format
  *=========================================================================*/
-int dump_labels(char* fname) {
-	symbol* sym, * head;
-	FILE* out;
-
-	out = fopen(fname, "wb");
+int dump_labels(char* fname)
+{
+	FILE* out = fopen(fname, "wb");
 	if (!out)
 		return 0;
 
-	head = linkit();
+	symbol* head = linkit();
 	if (!head) {
 		fclose(out);
 		return 0;
 	}
-	head = sym = sort(head, 0);
+	const symbol* sym = head = sort(head, 0);
 
-	while (sym) {
+	while (sym) 
+	{
 		if (sym->name[0])
-			if ((sym->tp == LABEL) && (sym->name[0] != '=')) {
-				if ((strchr(sym->name, '?')) && (opt.MAElocals))
+		{
+			if ((sym->tp == LABEL || sym->tp == EQUATE || sym->tp == TEQUATE) && (sym->name[0] != '='))
+			{
+				if (strchr(sym->name, '?') && opt.MAElocals)
 					fprintf(out, "%.4x %s\n", sym->addr & 0xffff, sym->name);
 				else {
 					fprintf(out, "%.4x %s\n", sym->addr & 0xffff, sym->name);
 				}
 			}
+		}
 		sym = sym->lnk;
 	}
 	fclose(out);
@@ -852,10 +864,9 @@ char* encodeStringForJson(char* src)
 void dump_VSCode(file_tracking* trackedFiles, int parts)
 {
 	symbol* sym, * head;
-	FILE* out;
 	int count;
 
-	out = fopen("asm-symbols.json", "wb");
+	FILE* out = fopen("asm-symbols.json", "wb");
 	if (!out)
 		return;
 

@@ -280,6 +280,7 @@ Version 1.25 - Added -a / -mac65 option
 
 				And the assembled code will start running @ $2000
 Version 1.26 - fixed the parsing of the -hvclm and -hvcLm command line parameters
+				-l and -s options now produce the same output. -l also includes equates (=)
 
 ============================================================================
 Chapter 1: ATasm
@@ -326,7 +327,7 @@ following command line parameters:
 		-ofname: saves object file to fname
 		-Dsymbol=value: pre-defines [symbol] to [value]
 		-Idirectory: search directory for .INCLUDE files
-		-mae: treats local labels like MAE assembler
+		-mae: treats local labels like the MAE assembler. See section 3.15 for more information.
 		-hc[fname]: dumps constants/equates and labels to CC65 header file.
 		-ha[fname]: dumps constants/equates and labels to ATasm .include file.
 		-hv[clmL]: dumps constants/equates, labels and macro definition info
@@ -697,7 +698,7 @@ only implements the following options: ERR, OBJ, LIST and ILL. By default,
 both ERR and OBJ options are set, while the ILL and LIST options are off.
 If ERR is turned off then all warnings that would normally be sent to the 
 screen will be suppressed. Notice that this behavior is subtly different 
-then the original Mac/65 program which suppressed both warnings and errors. 
+from the original Mac/65 program which suppressed both warnings and errors. 
 OBJ is used to control whether or not object code is stored in the binary 
 image. Again, behavior is changed from the original environment. 
 Setting .OPT NO OBJ could be useful if you wish to use label values in 
@@ -735,6 +736,18 @@ although Mac/65 was limited to 62 local regions, ATasm has virtually
 unlimited regions (65536 regions). Local labels may be forward referenced 
 like other labels, but they will not appear in the symbol table dump at the 
 end of the assembly processes.
+
+If the -mae option is specified on the command line, ATasm operates in a
+special mode in which the .LOCAL directive is ignored. Instead, every span
+between two regular (i.e. non-local) labels is automatically defined as a
+local region. As with regular local regions, a local variable may only be
+referenced from within that region. In this mode the assembler internally
+creates unique names for local labels by appending the local onto the end
+of the previous global label. For example, a local label '?LP' following a
+regular label 'DELAY' will be named 'DELAY?LP'. In fact, you can code a direct
+reference to the label DELAY?LP if you need to access the local from outside
+its region. [Note that in contrast to regular mode, these 'composite' label
+names will appear in the -hvl dump output as if they were global.]
 
 3.16 .MACRO <macro name>, .ENDM
 	The .MACRO directive must be paired with an .ENDM directive. All macros 
