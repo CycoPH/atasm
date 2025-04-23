@@ -22,7 +22,7 @@
 #define SYMBOL_H
 
 #define MAJOR_VER 1
-#define MINOR_VER 26
+#define MINOR_VER 27
 #define BETA_VER 0
 
  /*==========================================================================*/

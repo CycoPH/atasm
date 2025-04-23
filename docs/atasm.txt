@@ -1,8 +1,8 @@
 ﻿============================================================================
-ATasm v1.26
+ATasm v1.27
 A mostly Mac/65 compatible 6502 cross-assembler
 
-Copyright (c) 1998-2022 Mark Schmelzenbach
+Copyright (c) 1998-2025 Mark Schmelzenbach
 email: mschmelzenbach@acm.org or cerebusrc@gmail.com
 ============================================================================
  Introduction
@@ -17,7 +17,7 @@ email: mschmelzenbach@acm.org or cerebusrc@gmail.com
    2.1 The Assembler
    2.2 Opcode format
    2.3 Operand format
-   2.4 Operators and expressions.9
+   2.4 Operators and expressions.
    
  Chapter 3  Compiler directives, Conditional assembly, and Macros
    3.1 Overview
@@ -281,6 +281,11 @@ Version 1.25 - Added -a / -mac65 option
 				And the assembled code will start running @ $2000
 Version 1.26 - fixed the parsing of the -hvclm and -hvcLm command line parameters
 				-l and -s options now produce the same output. -l also includes equates (=)
+
+
+Version 1.27 - Thank you to Itay Chamiel for finding an OLD bug in atasm.
+				Basically forward references that required an extra pass to resolve did not work.
+				The issue has now been fixed. Broken since V1.08				
 
 ============================================================================
 Chapter 1: ATasm
@@ -746,8 +751,8 @@ creates unique names for local labels by appending the local onto the end
 of the previous global label. For example, a local label '?LP' following a
 regular label 'DELAY' will be named 'DELAY?LP'. In fact, you can code a direct
 reference to the label DELAY?LP if you need to access the local from outside
-its region. [Note that in contrast to regular mode, these 'composite' label
-names will appear in the -hvl dump output as if they were global.]
+its region. Note that in contrast to regular mode, these 'composite' label
+names will appear in the -hvl dump output as if they were global.
 
 3.16 .MACRO <macro name>, .ENDM
 	The .MACRO directive must be paired with an .ENDM directive. All macros 

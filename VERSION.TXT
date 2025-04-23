@@ -234,3 +234,8 @@ May 4, 2024
 Feb 5, 2025
   version 1.26 - fixed the parsing of the -hvclm and -hvcLm command line parameters
   				-l and -s options now produce the same output. -l also includes equates (=)
+
+April 23, 2025
+  version 1.27 - Thank you to Itay Chamiel for finding an OLD bug in atasm.
+				Basically forward references that required an extra pass to resolve did not work.
+				The issue has now been fixed. Broken since V1.08

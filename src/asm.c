@@ -2845,7 +2845,7 @@ int proc_sym(symbol *sym)
 		case EQUATE:
         {
             if (!pass) {
-                if (eq == 1) {  /* was 2? probably a typo - mws */
+                if (eq == 2) {
                     snprintf(buf, 80, "Symbol '%s' is not a transitory equate!", sym->name);
                     error(buf, 1);
                 }

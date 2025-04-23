@@ -1,6 +1,6 @@
-                         ATasm v1.26
+                         ATasm v1.27
                   A mostly Mac/65 compatible 6502 cross-assembler
-                    Copyright (c) 1998-2023 Mark Schmelzenbach 
+                    Copyright (c) 1998-2025 Mark Schmelzenbach 
 
 ATasm is a 6502 command-line cross-assembler that is compatible with the
 original Mac/65 macro-assembler released by OSS software.  Code
