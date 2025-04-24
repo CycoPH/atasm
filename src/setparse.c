@@ -356,10 +356,10 @@ int get_signed_expression(char *str, int tp) {
         }
         if (sym)  /* mws fix for overflow.m65 */
           return sym->addr;
-        return 0xffff;
+        return 0xfffff;
       } else {
         v=sym->addr;
-        if ((pass)&&(v==0xffff)&&(sym->ref!=1)) {
+        if ((pass)&&(v==0xfffff)&&(sym->ref!=1)) {
           double_fwd=1;
         }
       }
