@@ -1,5 +1,5 @@
 ﻿============================================================================
-ATasm v1.27
+ATasm v1.28
 A mostly Mac/65 compatible 6502 cross-assembler
 
 Copyright (c) 1998-2025 Mark Schmelzenbach
@@ -286,6 +286,10 @@ Version 1.26 - fixed the parsing of the -hvclm and -hvcLm command line parameter
 Version 1.27 - Thank you to Itay Chamiel for finding an OLD bug in atasm.
 				Basically forward references that required an extra pass to resolve did not work.
 				The issue has now been fixed. Broken since V1.08				
+
+Version 1.28 - Trying to fix a parse error in a forward declared variable.
+				The problem is that a forward declaration was given the value of $FFFF. Issue comes in if the variable is also given that value via x = $FFFF.
+				At that point atasm does not know if its a forward declaration or a fixed assignment.
 
 ============================================================================
 Chapter 1: ATasm
@@ -587,13 +591,23 @@ In the following sections the following notation is used:
 	Also, symbols enclosed in brackets '[' ']' are optional.
 	
 3.2  *=<addr>
-	This sets the origin address for assembly.
+	This sets the origin address for assembly and optionally names the memory region.
 	
+	Ex:
+	* = $2000 "boot"
+	* = $3000 "sprites"
+	* = $4000 "music"
+	This defines 3 memory areas and gives each a name. The names are dumped at after the assemble.
+
 3.3  .DS <word>
 	 *=*+<word>
 	(Define Storage)  This reserves an area of memory at the 
 	current address equal to size <word>. 
 	This is equivalent to the expression *=*+<word>
+
+	Ex:
+	label .DS 10
+	This allocates 10 bytes of storage and assigned the "label" to point to the first byte.
 
 3.4  .DC <word> <byte>
 	(Define Constant storage)  This fills an area of memory at 
@@ -713,6 +727,7 @@ used inside areas of code surrounded by .OPT ILL, overriding the command-line
 parameter. The LIST opt can be used to override the command line -v argument 
 and/or turn off the generation of screen output for certain sections of 
 source files (for instance, long sections of data).
+
     There is an option that can be used in combination with the -hv
 command line parameter. If the -hv command line argument is used then
 ATasm will dump constants, labels, macros and included file info to
@@ -1195,16 +1210,6 @@ compiled the sample files that come with the Mac/65 disk based assembler, but
 really crazy macros may not give the anticipated result. If you stumble across
 code that ATasm incorrectly handles, isolate the shortest example that you
 can and send it to me.
-
-[Blatant plug] Also be sure to check out EnvisionPC, available at 
-http://atari.miribilist.com/envision/index.html. This is a very useful 
-cross-platform graphics utility that runs native on the PC (Linux/Windows) 
-or on MacOSX. It allows you to easily design all those nifty Atari character 
-sets and maps. The original Atari based Envision always begged for a mouse 
-interface... and now it exists. EnvisionPC is a full-featured character 
-editor and map-maker based on the original APX Envision graphics utility. 
-It supports ANTIC modes 2-7, 10 font banks loaded concurrently, and map sizes 
-of up to 512x512 characters. Download it and start designing new games today.
 
 ============================================================================
 Chapter 6: Bug reports, Feature Requests and Credits

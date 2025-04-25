@@ -22,7 +22,7 @@
 #define SYMBOL_H
 
 #define MAJOR_VER 1
-#define MINOR_VER 27
+#define MINOR_VER 28
 #define BETA_VER 0
 
  /*==========================================================================*/
@@ -142,7 +142,7 @@ typedef struct macro_line { /* an entry in a macro */
 typedef struct macro {  /* a macro */
 	char* name;           /* name */
 	int tp, param, num;    /* number of parameters, # lines */
-	short times;          /* number of invokations */
+	short times;          /* number of invoke actions */
 	macro_line* lines;    /* The actual text */
 	symbol* mlabels;      /* assembled labels */
 	struct macro* nxt;
