@@ -203,7 +203,7 @@ Version 1.26 \- fixed the parsing of the \-hvclm and \-hvcLm command line parame
 
 Version 1.27 \- Thank you to Itay Chamiel for finding an OLD bug in atasm. Basically forward references that required an extra pass to resolve did not work. The issue has now been fixed. Broken since V1.08
 
-Version 1.28 \- Trying to fix a parse error in a forward declared variable.
+Version 1.28 \- Fixed a parse error in a forward declared variable.
 The problem is that a forward declaration was given the value of $FFFF. Issue comes in if the variable is also given that value via x = $FFFF. At that point atasm does not know if its a forward declaration or a fixed assignment.
 
 ## Chapter 1: ATasm {#chapter-1}
