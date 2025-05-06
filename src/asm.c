@@ -225,10 +225,14 @@
 #include "inc_path.h"
 #include "atasm_err.h"
 
+int do_cmd(char* buf);
 
 #define MAX_IF_DEPTH    100
-int dotIfLevel = 0;    // No .IF if active, >0 means we are inside a .IF
+int dotIfLevel = 0;    // No .IF active, >0 means we are inside a .IF
 int doneIfPart[MAX_IF_DEPTH] = { 0 };
+
+int nextLabelIsAProcedure = 0;
+int dotProcLevel = 0;   // Make sure that there is only one .PROC active
 
 unsigned short pc;    /* program counter */
 int init_pc;          /* pc orig flag */
@@ -248,6 +252,9 @@ char *outline;  /* the line of text written out in verbose mode */
 
 symbol* lastSymbol = NULL;
 symbol* lastLabel = NULL;           // Which is the last label that was defined
+
+symbol* currentProcedure = NULL;    // Which is the current procedure
+
 file_tracking* trackedFiles;
 
 memory_name* namedMemoryRegions;    // What name is given to a specific memory region, used in vscode extension
@@ -589,7 +596,7 @@ void aprintf(char* msg, ...) {
  * Strings are returned verbatim (including spaces)
  *=========================================================================*/
 char *get_nxt_word(int tp) {
-  static char buf[256], line[256], *fget=NULL;
+  static char buf[256], line[256], *fget = NULL;
   char l,*look,*walk;
   int instr,i,len;
   file_stack *kill;
@@ -637,132 +644,176 @@ char *get_nxt_word(int tp) {
   look=buf;
   *look=0;
 
-  if ((tp==PARSE_LINE_REST)||(tp==PARSE_PEEK_LINE_REST)) {
-    if (!fget)
-      return buf;
-    strcpy(buf,fget);
-    instr=0;
-    len=(int)strlen(buf);
-    for(i=0;i<len;i++) {
-      if (buf[i]=='"')    /* fix embedded ';' problem - mws 11/10/99 */
-        instr^=1;
-      else if ((buf[i]==';')&&(!instr)) {
-        if ((i)&&(buf[i-1]=='\''))  /* allow quoted semicolons */
-          continue;
-        buf[i]=0;
-        break;
-      }
-    }
-    if (tp==PARSE_LINE_REST) {
-      fget=NULL;
-    }
-    return buf;
-  } else if (tp==PARSE_CURRENT_LINE)
-    return line;
+  if (tp == PARSE_LINE_REST || tp == PARSE_PEEK_LINE_REST)
+  {
+	  if (!fget)
+		  return buf;
+	  strcpy(buf, fget);
+	  instr = 0;
+	  len = (int)strlen(buf);
+	  for (i = 0; i < len; i++) 
+      {
+		  if (buf[i] == '"')    /* fix embedded ';' problem - mws 11/10/99 */
+			  instr ^= 1;
+		  else if ((buf[i] == ';') && (!instr)) 
+          {
+			  if ((i) && (buf[i - 1] == '\''))  /* allow quoted semicolons */
+				  continue;
+			  buf[i] = 0;
+			  break;
+		  }
+	  }
+	  if (tp == PARSE_LINE_REST) 
+      {
+		  fget = NULL;
+	  }
+	  return buf;
+  }
+
+  if (tp == PARSE_CURRENT_LINE)
+  {
+      return line;
+  }
 
   /* skip over empty space, blank lines and comments */
-  do {
-    while ((!fget)||(!(*fget))) {
-      if (tp==PARSE_NEXT_WORD) {
-        buf[0]=0;
-        return buf;
-      }
-      if (!fin)
-        error("No active file handle.",1);
-      outline[0]=0;
-      memset(line,0,256);
-      memset(buf,0,256);
-      if (invoked) {  /* use macro table, if needed */
-        strcpy(line,invoked->line->line);
-        if (tp!=PARSE_SKIP)
-          macro_subst(invoked->orig->name,line,invoked->cmd,invoked->argc);
-        invoked->line=invoked->line->nxt;
-        if (!invoked->line) {
-          if (invoked->orig->tp==1) {
-            invoked->orig->num--;
-            if (invoked->orig->num)
-              invoked->line=invoked->orig->lines;
-            else {
-              mkill=invoked;
-              invoked=invoked->nxt;
-              del_rept(mkill);
-            }
-          } else {
-            mkill=invoked;
-            invoked=invoked->nxt;
-            if (mkill->argc) {
-              for(i=0;i<mkill->argc;i++) {
-                lkill=mkill->cmd;
-                mkill->cmd=mkill->cmd->nxt;
-                free(lkill->line);
-                free(lkill);
+  int inComment = 0;
+  do
+  {
+	  while (!fget || !(*fget))
+	  {
+		  if (tp == PARSE_NEXT_WORD)
+		  {
+			  buf[0] = 0;
+			  return buf;
+		  }
+		  if (!fin)
+			  error("No active file handle.", 1);
+		  outline[0] = 0;
+		  memset(line, 0, 256);
+		  memset(buf, 0, 256);
+		  if (invoked)
+		  {
+			  /* use macro table, if needed */
+			  strcpy(line, invoked->line->line);
+			  if (tp != PARSE_SKIP)
+				  macro_subst(invoked->orig->name, line, invoked->cmd, invoked->argc);
+			  invoked->line = invoked->line->nxt;
+			  if (!invoked->line) {
+				  if (invoked->orig->tp == 1) {
+					  invoked->orig->num--;
+					  if (invoked->orig->num)
+						  invoked->line = invoked->orig->lines;
+					  else {
+						  mkill = invoked;
+						  invoked = invoked->nxt;
+						  del_rept(mkill);
+					  }
+				  }
+				  else {
+					  mkill = invoked;
+					  invoked = invoked->nxt;
+					  if (mkill->argc) {
+						  for (i = 0; i < mkill->argc; i++) {
+							  lkill = mkill->cmd;
+							  mkill->cmd = mkill->cmd->nxt;
+							  free(lkill->line);
+							  free(lkill);
+						  }
+					  }
+					  free(mkill);
+				  }
+			  }
+		  }
+		  else
+		  {
+			  /* get new line from file */
+			  fin->line++;
+			  if (!fgets(line, 256, fin->in))
+			  {
+				  line[0] = 0;
+			  }
+		  }
+		  /* strip line number, if one exists */
+		  if (ISDIGIT(line[0])) {
+			  i = 0;
+			  while (ISDIGIT(line[i]))
+				  line[i++] = ' '; /* space = 32 */
+		  }
+		  /* Remove EOL characters */
+		  len = (int)strlen(line);
+		  for (i = 0; i < len; i++)
+		  {
+			  if ((line[i] == 10) || (line[i] == 13))
+				  line[i] = 0;
+		  }
+		  walk = line + strlen(line) - 1;
+		  while (ISSPACE(*walk)) {
+			  *walk = 0;
+			  walk--;
+		  }
+		  fget = line;
+		  if (feof(fin->in) && !strlen(line))
+		  {
+			  /* fixed early close -- 05/25/02 mws */
+			  kill = fin;
+			  fin = fin->nxt;
+			  fclose(kill->in);
+			  free(kill->name);
+			  if (kill->trackClear) *kill->trackClear = NULL;
+			  free(kill);
+			  fget = NULL;
+			  if (!fin)
+				  return NULL;
+		  }
+	  }
+	  while (ISSPACE(*fget)) {
+		  fget++;
+	  }
+	  if ((fget && !(*fget)) || *fget == ';')
+	  {
+		  /* check for full comment line */
+		  if (*fget == ';' && pass) {
+			  /* We have a comment on the 2nd pass
+			   * 1. Skip white space after the ;
+			   * Check if its a ; ## TRACE or ; ## ASSERT for Altirra debugging
+			   */
+			  ++fget;
+			  while ((*fget == ' ' || *fget == '\t') && *fget != 0) ++fget;
+			  if (verbose & 2 && fget[0] == '#' && fget[1] == '#') {
+				  fprintf(listFile, " %d ;%s\n", fin->line, fget); /* NB: Note the space at the beginning of the line! */
+			  }
+			  // If the current line and file are the same as that of the last label
+			  // then append the comment to the label
+			  if (lastLabel && lastLabel->ftrack == fin->ftrack && lastLabel->lineNr == fin->line)
+			  {
+				  // Add the comment to the label
+				  lastLabel->comment = STRDUP(fget);
+			  }
+		  }
+		  fget = NULL;
+	  }
+	  if (fget && *fget && !STRNCASECMP(fget, "/*", 2))
+	  {
+		  // Start of comment block
+		  inComment = 1;
+          fget = NULL;
+	  }
+      if (fget && *fget && inComment)
+      {
+	      // Looking for the end of a comment block
+          // Skip everything until we find */
+          do 
+          {
+              if (!STRNCASECMP(fget, "*/", 2))
+              {
+					// Found the end of the comment block
+                  fget += 2;
+                  inComment = 0;
               }
-            }
-            free(mkill);
-          }
-        }
-      } else { /* get new line from file */
-        fin->line++;
-        if (!fgets(line,256,fin->in)) {
-          line[0]=0;
-        }
+              fget++;
+          } while (inComment && fget && *fget);
       }
-      /* strip line number, if one exists */
-      if (ISDIGIT(line[0])) {
-        i=0;
-        while(ISDIGIT(line[i]))
-          line[i++]=' '; /* space = 32 */
-      }
-      /* Remove EOL characters */
-      len=(int)strlen(line);
-      for(i=0;i<len;i++) {
-        if ((line[i]==10)||(line[i]==13))
-          line[i]=0;
-      }
-      walk=line+strlen(line)-1;
-      while(ISSPACE(*walk)) {
-        *walk=0;
-        walk--;
-      }
-      fget=line;
-      if ((feof(fin->in))&&(!strlen(line))) {  /* fixed early close -- 05/25/02 mws */
-        kill=fin;
-        fin=fin->nxt;
-        fclose(kill->in);
-        free(kill->name);
-        if (kill->trackClear) *kill->trackClear = NULL;
-        free(kill);
-        fget=NULL;
-        if (!fin)
-          return NULL;
-      }
-    }
-    while(ISSPACE(*fget)) {
-      fget++;
-    }
-    if (((fget)&&(!(*fget)))||(*fget==';')) {
-        /* check for full comment line */
-        if (*fget == ';' && pass) {
-            /* We have a comment on the 2nd pass
-             * 1. Skip white space after the ;
-             * Check if its a ; ## TRACE or ; ## ASSERT for Altirra debugging
-             */
-            ++fget;
-            while ((*fget == ' ' || *fget == '\t') && *fget != 0) ++fget;
-            if (verbose & 2 && fget[0] == '#' && fget[1] == '#') {
-              fprintf(listFile, " %d ;%s\n", fin->line, fget); /* NB: Note the space at the beginning of the line! */
-            }
-            // If the current line and file are the same as that of the last label
-            // then append the comment to the label
-            if (lastLabel && lastLabel->ftrack == fin->ftrack && lastLabel->lineNr == fin->line)
-            {
-                // Add the comment to the label
-                lastLabel->comment = STRDUP(fget);
-            }
-        }
-      fget=NULL;
-    }
-  } while ((!fget)||(!(*fget)));
+  } while (!fget || !(*fget));
 
   instr=0;
 
@@ -1368,7 +1419,7 @@ int num_cvt(char *num) {
     txt=num+1;
     if (num[0]=='$')
       tp=IS_HEX;
-    else if (num[0]=='~')
+    else if (num[0]=='~' || num[0]=='%')
       tp=IS_BINARY;
     else {
       tp=IS_DECIMAL; /* remove annoying compiler warning */
@@ -2297,6 +2348,42 @@ void doRunInitCommand(symbol* sym)
     do_xword(sym->addr);
 }
 
+void doProcStart(symbol* sym)
+{
+	if (dotProcLevel > 0)
+	{
+		error("Nested .PROC/.ENDP not allowed", 1);
+	}
+    ++dotProcLevel;
+
+	char* str = get_nxt_word(PARSE_NEXT_WORD);
+    local++;
+    nextLabelIsAProcedure = 1;
+
+    if (str && strlen(str) > 0)
+        do_cmd(str);
+    else
+		error("No name for .PROC", 1);
+}
+
+void doProcEnd(symbol* sym)
+{
+    if (dotProcLevel <= 0)
+    {
+        error("No matching .PROC for .ENDP", 1);
+    }
+    // Finish off the current procedure
+	if (currentProcedure && (currentProcedure->hints & HINT_PROCEDURE))
+	{
+		// This is a procedure
+        currentProcedure->procEndAddr = pc;
+        currentProcedure->procEndLineNr = fin->line;
+
+        currentProcedure = NULL;
+	}
+	--dotProcLevel;
+}
+
 /*=========================================================================*
  * function proc_sym(symbol *sym)
  * parameter sym- the symbol to parse
@@ -2403,6 +2490,36 @@ int proc_sym(symbol *sym)
                     else
                         skip_if();      // Skip until .ELSE, .ELSEIF or .ENDIF
                     break;
+                case DOT_IFDEF: /* .IFDEF = IF DEFINED */
+                {
+                    ++dotIfLevel;
+                    clearDoneIfPartIndicators(dotIfLevel);
+
+                    str = get_nxt_word(PARSE_LINE_REST);
+                    squeeze_str(str);
+                    eq = 0;
+
+                    if (!get_not_defined(str))
+                        doneIfPart[dotIfLevel] = 1;
+                    else
+                        skip_if();      // Skip until .ELSE, .ELSEIF or .ENDIF
+                    break;
+                }
+                case DOT_IFNDEF: /* .IFNDEF = IF NOT DEFINED */
+                {
+                    ++dotIfLevel;
+                    clearDoneIfPartIndicators(dotIfLevel);
+
+                    str = get_nxt_word(PARSE_LINE_REST);
+                    squeeze_str(str);
+                    eq = 0;
+
+                    if (get_not_defined(str))
+                        doneIfPart[dotIfLevel] = 1;
+                    else
+                        skip_if();      // Skip until .ELSE, .ELSEIF or .ENDIF
+                    break;
+                }
                 case DOT_INCLUDE:  /* .INCLUDE */
                     str = get_nxt_word(PARSE_NEXT_LINE);
                     if (str[0] == '"') {
@@ -2783,6 +2900,15 @@ int proc_sym(symbol *sym)
                     doRunInitCommand(sym);
 					break;
 				}
+				// Define a procedure entry/end
+				case DOT_PROC:
+                    doProcStart(sym);
+					break;
+
+				case DOT_ENDP:
+                    doProcEnd(sym);
+                    break;
+
                 default:
                     error("Illegal directive.", 1);
                     break;
@@ -2949,6 +3075,12 @@ int do_cmd(char *buf)
 			if (!strchr(sym->name, '?'))
 				opt.MAEname = sym->name;
 		}
+        if (sym && sym->tp == LABEL && sym->name && nextLabelIsAProcedure)
+        {
+            nextLabelIsAProcedure = 0;
+            sym->hints = HINT_PROCEDURE;
+            currentProcedure = sym;
+        }
 	}
 	else
     {
@@ -3644,8 +3776,6 @@ int main(int argc, char* argv[])
 	}
 
     dumpLongJumpOptimizations();
-
-
 
 	clean_up();
 	cleanup_FilenameTracking();

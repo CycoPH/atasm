@@ -395,6 +395,9 @@ symbol* get_sym() {
 	sym->ftrack = NULL;
 	sym->comment = NULL;
 	sym->dumpOptions = 0;
+	sym->hints = 0;
+	sym->procEndAddr = 0;
+	sym->procEndLineNr = 0;
 
 	return sym;
 }
@@ -586,7 +589,20 @@ int dump_symbols()
 					;
 				else
 				{
-					printf("%s: %.4x\t\t", sym->name, sym->addr & 0xffff);
+					if (sym->hints & HINT_PROCEDURE)
+					{
+						printf("%s: %.4x [PROC @ '%s' ln:%d-%d]\n", 
+							sym->name, 
+							sym->addr & 0xffff, 
+							sym->ftrack->name,
+							sym->lineNr, 
+							sym->procEndLineNr);
+						n = 0;
+					}
+					else
+					{
+						printf("%s: %.4x%s\t\t", sym->name, sym->addr & 0xffff, (sym->hints & HINT_PROCEDURE) ? "[P]" : "");
+					}
 					n++;
 					if (n == 3)
 					{
@@ -846,6 +862,12 @@ char* encodeStringForJson(char* src)
 		else  if (*src == '\t') {
 			*dest = ' ';
 		}
+		else if (*src == '\\')
+		{
+			*dest = '\\';
+			++dest;
+			*dest = *src;
+		}
 		else
 			*dest = *src;
 		++dest;
@@ -854,7 +876,6 @@ char* encodeStringForJson(char* src)
 	*dest = 0;
 
 	return buffer;
-
 }
 
 /*
@@ -895,7 +916,7 @@ void dump_VSCode(file_tracking* trackedFiles, int parts)
 				fprintf(out, "{");
 				fprintf(out, "\"name\":\"%s\"", bestNameForSymbol(sym));
 				fprintf(out, ",\"addr\":%d", sym->addr & 0xffff);
-				fprintf(out, ",\"file\":\"%s\"", sym->ftrack ? sym->ftrack->name : "-");
+				fprintf(out, ",\"file\":\"%s\"", sym->ftrack ? encodeStringForJson(sym->ftrack->name) : "-");
 				fprintf(out, ",\"ln\":%d", sym->lineNr);
 				if (sym->comment) {
 					fprintf(out, ",\"com\":\"%s\"", encodeStringForJson(sym->comment));
@@ -929,11 +950,16 @@ void dump_VSCode(file_tracking* trackedFiles, int parts)
 				fprintf(out, ",\"addr\":%d", sym->addr & 0xffff);
 				if (sym->lineNr > 0)
 				{
-					fprintf(out, ",\"file\":\"%s\"", sym->ftrack ? sym->ftrack->name : "-");
+					fprintf(out, ",\"file\":\"%s\"", sym->ftrack ? encodeStringForJson(sym->ftrack->name) : "-");
 					fprintf(out, ",\"ln\":%d", sym->lineNr);
 				}
 				else {
 					fprintf(out, ",\"cmdln\":\"%s\"", sym->orig);
+				}
+				if (sym->hints & HINT_PROCEDURE)
+				{
+					// This is a procedure/function definition
+					fprintf(out, ",\"proc\":\"%d-%d\"", sym->lineNr, sym->procEndLineNr);
 				}
 				if (sym->comment) {
 					fprintf(out, ",\"com\":\"%s\"", encodeStringForJson(sym->comment));
@@ -963,7 +989,7 @@ void dump_VSCode(file_tracking* trackedFiles, int parts)
 				// fprintf(out, ",\"addr\":%d", sym->addr & 0xffff);
 				if (sym->lineNr > 0)
 				{
-					fprintf(out, ",\"file\":\"%s\"", sym->ftrack ? sym->ftrack->name : "-");
+					fprintf(out, ",\"file\":\"%s\"", sym->ftrack ? encodeStringForJson(sym->ftrack->name) : "-");
 					fprintf(out, ",\"ln\":%d", sym->lineNr);
 				}
 				if (sym->comment) {
@@ -986,7 +1012,7 @@ void dump_VSCode(file_tracking* trackedFiles, int parts)
 		if (count != 0)
 			fprintf(out, ",\n");
 		fprintf(out, "{");
-		fprintf(out, "\"file\":\"%s\"", trackedFiles->name);
+		fprintf(out, "\"file\":\"%s\"", encodeStringForJson(trackedFiles->name));
 		fprintf(out, "}");
 		++count;
 		trackedFiles = trackedFiles->nxt;
@@ -1052,7 +1078,7 @@ int macro_subst(char* name, char* in, macro_line* args, int max) {
 	   %$(LABEL): parameter is a string     (parameter # is label addr)
 	*/
 	while (*look) {
-		if (*look == '%') { /* time to substitute a paramter */
+		if (*look == '%') { /* time to substitute a parameter */
 			if (*(look + 1) == '%') {
 				*walk++ = *look++;
 				*walk++ = *look++;

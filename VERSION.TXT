@@ -244,4 +244,9 @@ April 25, 2025
   version 1.28 - Fixed a parse error in a forward declared variable.
 				The problem is that a forward declaration was given the value of $FFFF.
 				Issue comes in if the variable is also given that value via x = $FFFF.
-				At that point atasm does not know if its a forward declaration or a fixed assignment.				
+				At that point atasm does not know if its a forward declaration or a fixed assignment.
+
+May 2, 2025
+  version 1.29 - Added .IFDEF and .IFNDEF directive. Short version of: .IF .DEF and .IF .NOT .DEF
+				Parsing binary numbers in MADS format %11110000 works now.
+				Added multi-line comments using the /* ..... */ format

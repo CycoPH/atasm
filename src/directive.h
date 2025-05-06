@@ -21,7 +21,7 @@
 #ifndef DIRECTIVE_H
 #define DIRECTIVE_H
 
-#define NUM_DIR 31+8+2+3+2
+#define NUM_DIR 31+8+2+3+2+2+2
 
 /* Give names to the 'directives' entries */
 #define DOT_BYTE 0
@@ -80,19 +80,34 @@
 #define DOT_RUN 44
 #define DOT_INIT 45
 
-char *direct[NUM_DIR]={".BYTE",".CBYTE",".SBYTE",".DBYTE",".ELSE",".END",".ENDIF",
-		".ERROR",".FLOAT",".IF",".INCLUDE",".LOCAL",".OPT",".PAGE",
-		".SET",".TAB",".TITLE",".WORD","*",".ENDM",".MACRO",".DS",
-		".INCBIN",".REPT",".ENDR",".WARN",".DC",".BANK",".ALIGN", ".NAME",
-        ".ELSEIF",
-        // Long jumps
-        "JEQ","JNE","JPL","JMI","JCC","JCS","JVC","JVS",
-        // Trig
-        ".SIN",".COS",
-        // Float to unsigned 16-bit / 8-bit
-        ".FLOAT2U16LH",".FLOAT2U16HL",".FLOAT2U8",
-		// Run and init shortcuts
-		".RUN", ".INIT"
+// .IF .DEF and .IF .NOT .DEF shortcuts
+#define DOT_IFDEF 46
+#define DOT_IFNDEF 47
+
+#define DOT_PROC 48
+#define DOT_ENDP 49
+
+char *direct[NUM_DIR] = 
+{
+	".BYTE",".CBYTE",".SBYTE",".DBYTE",".ELSE",".END",".ENDIF",
+	".ERROR",".FLOAT",".IF",".INCLUDE",".LOCAL",".OPT",".PAGE",
+	".SET",".TAB",".TITLE",".WORD","*",".ENDM",".MACRO",".DS",
+	".INCBIN",".REPT",".ENDR",".WARN",".DC",".BANK",".ALIGN", ".NAME",
+	".ELSEIF",
+	// Long jumps
+	"JEQ","JNE","JPL","JMI","JCC","JCS","JVC","JVS",
+	// Trig
+	".SIN",".COS",
+	// Float to unsigned 16-bit / 8-bit
+	".FLOAT2U16LH",".FLOAT2U16HL",".FLOAT2U8",
+	// Run and init shortcuts
+	".RUN", ".INIT",
+	// More .if[n]def handlers
+	".IFDEF",
+    ".IFNDEF",
+    // Function/procedure definitions
+	".PROC",
+	".ENDP",
 };
 
 unsigned longJump2ShortOpcode[NUM_DIR] = {
@@ -108,6 +123,7 @@ unsigned longJump2ShortOpcode[NUM_DIR] = {
     0x70,       // JVS -> BVS
     0,0,
     0,0,0,
+    0,0,0,0,
     0,0,
 };
 
@@ -124,6 +140,7 @@ char* longJump2ShortOpcodeName[NUM_DIR] = {
     "BVS",
     0,0,
     0,0,0,
+    0,0,0,0,
     0,0,
 };
 
@@ -140,6 +157,7 @@ unsigned longJump2InverseOpcode[NUM_DIR] = {
     0x50,       // JVS -> BVC
     0,0,
     0,0,0,
+    0,0,0,0,
     0,0,
 };
 
@@ -156,6 +174,7 @@ char* longJump2InverseOpcodeName[NUM_DIR] = {
     "BVC",
     0,0,
     0,0,0,
+    0,0,0,0,
     0,0,
 };
 

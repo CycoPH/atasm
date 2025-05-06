@@ -186,6 +186,28 @@ unsigned short get_expression(char* str, int tp, int withRollover)
 	return (unsigned short)expr;
 }
 
+/*=========================================================================*
+ Function get_not_defined
+ Parameters: str - the symbol to make sure is not defined
+ Returns: 1 if not defined, 0 if defined
+ *=========================================================================*/
+int get_not_defined(char *str)
+{
+    char buf[5], work[256];
+    char* walk = buf;
+    *walk++ = 'N';
+
+    get_name(str, work);
+    symbol* sym = validate_symbol(work);
+    if (!sym)
+        *walk++ = '0';
+    else
+        *walk++ = '1';
+
+    *walk = 0;
+    return parse_expr(buf);
+}
+
 int get_signed_expression(char *str, int tp) {
   char buf[256], work[256];
   char *look, *walk, *w;
@@ -256,7 +278,7 @@ int get_signed_expression(char *str, int tp) {
       v=*look;
       look++;
       if ((*look=='\'')&&(v!=' ')) {
-        error("Probably shouldn\'t be surrounded by \'",0);
+        error("Probably should not be surrounded by \'",0);
         look++;
       }
       snprintf(work,256,"%d",v);
@@ -265,6 +287,17 @@ int get_signed_expression(char *str, int tp) {
     } else if (*look == '%') {
       if (!STRNCASECMP(look, "%%", 2)) {
         look += 2; *walk++ = 'M';
+      }
+      else if (!STRNCASECMP(look, "%", 1)) {
+          w = work;
+          *w++ = *look++;
+          while (ISDIGIT(*look))
+              *w++ = *look++;
+          *w = 0;
+          v = num_cvt(work);
+          snprintf(work, 256, "%d", v);
+          strcpy(walk, work);
+          walk += strlen(work);
       }
     } else if (*look=='.') {
       if (!STRNCASECMP(look, ".MOD", 4)) {

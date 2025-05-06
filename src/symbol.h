@@ -22,7 +22,7 @@
 #define SYMBOL_H
 
 #define MAJOR_VER 1
-#define MINOR_VER 28
+#define MINOR_VER 29
 #define BETA_VER 0
 
  /*==========================================================================*/
@@ -68,7 +68,9 @@ typedef struct MemoryBank {
 } MemoryBank;
 
 /*==========================================================================*/
-typedef struct symbol {  /* Symbol table entry */
+/* Symbol table entry */
+typedef struct symbol
+{ 
 	char* name;
 	char* orig;   /* original name, no ? processing yet */
 	/* tp:
@@ -92,7 +94,7 @@ typedef struct symbol {  /* Symbol table entry */
 	/* Track the source of the symbol */
 	int lineNr;
 	struct file_tracking* ftrack;
-	/* comment from source file*/
+	/* comment from source file */
 	char* comment;
 	/* When dumping symbols we can prevent the symbol from showing up in the
 	 * 'asm-symbols.json' file
@@ -100,6 +102,9 @@ typedef struct symbol {  /* Symbol table entry */
 	 * 1 = exclude from constant dump
 	 */
 	int dumpOptions;
+	int hints; // Some parser hints	0 = none, 1 = procedure
+	unsigned short procEndAddr;
+	int procEndLineNr;
 } symbol;
 
 /*==========================================================================*/
@@ -123,6 +128,10 @@ typedef struct strList {
 #define MACROL 5
 #define EQUATE 6
 #define MACROQ 7
+
+#define HINT_NONE 0
+#define HINT_PROCEDURE 1
+
 /*==========================================================================*/
 typedef struct file_stack { /* File process entry */
 	char* name;
@@ -215,6 +224,7 @@ int num_cvt(char* num);
 
 unsigned short get_expression(char* str, int tp, int withRollover);
 int get_signed_expression(char* str, int tp);
+int get_not_defined(char* str);
 int get_name(char* src, char* dst);
 
 symbol* findsym(char* name);
