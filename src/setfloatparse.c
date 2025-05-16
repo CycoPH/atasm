@@ -32,7 +32,8 @@
 #include "compat.h"
 #include "symbol.h"
 
-int error(char* err, int tp);
+void fatal_error(char* errorMessage);
+int error(char* errorMessage, int tp);
 int floatparse();
 extern float frval;
 int fvnum;
@@ -61,7 +62,7 @@ int floatlex()
 
 	look = strchr(terminals, c);
 	if (!look) {
-		error("Malformed expression", 1);
+		fatal_error("Malformed expression");
 		return 0;
 	}
 	else {
@@ -111,7 +112,7 @@ float parse_float_expr(char* a)
 	parse_string = expr;
 
 	if (floatparse()) {
-		error("Malformed expression", 1);
+		fatal_error("Malformed expression");
 	}
 	return frval;
 }
@@ -171,7 +172,7 @@ float get_float_expression(char* str, int tp)
 				look = hold + v;
 				sym = findsym(work);
 				if (!sym) {
-					error("Non-hex expression", 1);
+					fatal_error("Non-hex expression");
 				}
 				else {
 					snprintf(buf, 256, "Interpreting '$%s' as hex value '$%x'", work, sym->addr);
@@ -216,7 +217,7 @@ float get_float_expression(char* str, int tp)
 				look += 4; *walk++ = 'N';
 			}
 			else {
-				error("Invalid compiler directive in expression.", 1);
+				fatal_error("Invalid compiler directive in expression.");
 			}
 		}
 		else if (*look == '(') {
@@ -242,18 +243,18 @@ float get_float_expression(char* str, int tp)
 			if ((!sym) && (tp)) {
 				snprintf(buf, 256, "Unknown symbol '%s'", work);
 				dump_symbols();
-				error(buf, 1);
+				fatal_error(buf);
 			}
 			if ((!sym) || ((sym->tp == MACROL) && (!sym->macroShadow))) {
-				unkLabel* look;
+				UnknownLabel* look;
 
-				look = isUnk(work);
+				look = isUnknown(work);
 				if (look) {
 					if (look->zp)
 						return 0xff;
 				}
 				else {
-					addUnk(work);
+					addUnknown(work);
 				}
 				if (sym)  /* mws fix for overflow.m65 */
 					return sym->addr;

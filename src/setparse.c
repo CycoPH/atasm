@@ -31,7 +31,8 @@
 #include "compat.h"
 #include "symbol.h"
 
-int error(char *err, int tp);
+void fatal_error(char* errorMessage);
+int error(char *errorMessage, int tp);
 int yyparse();
 extern int rval;
 int vnum, nums[64];
@@ -55,7 +56,7 @@ int yylex()
 
   look=strchr(terminals,c);
   if (!look) {
-    error("Malformed expression",1);
+      fatal_error("Malformed expression");
     return 0;
   } else {
     return c;
@@ -82,7 +83,7 @@ int parse_expr(char *a) {
       n=walk;
       while (ISDIGIT(*look)) {
           if (n >= theEnd) {
-              error("Expression parse buffer overflow",1);
+              fatal_error("Expression parse buffer overflow");
               return 0;
           }
           *n++ = *look++;
@@ -107,7 +108,7 @@ int parse_expr(char *a) {
   parse_string=expr;
 
   if (yyparse()) {
-    error("Malformed expression",1);
+      fatal_error("Malformed expression");
   }
   return rval;
 }
@@ -157,9 +158,9 @@ symbol *validate_symbol(char *str) {
     if (s->tp==MACRON) {
       char err[256];
       snprintf(err,256,"Cannot use macro name '%s' as an address.",s->name);
-      error(err,1);
+      fatal_error(err);
     } else if (s->tp==OPCODE) {
-      error("Cannot use reserved opcode as an address.",1);
+        fatal_error("Cannot use reserved opcode as an address.");
     }
   }
   return s;
@@ -249,7 +250,7 @@ int get_signed_expression(char *str, int tp) {
         look=hold+v;
         sym=findsym(work);
         if (!sym) {
-          error("Non-hex expression",1);
+            fatal_error("Non-hex expression");
         } else {
           snprintf(buf,256,"Interpreting '$%s' as hex value '$%x'",work,sym->addr);
           error(buf,0);
@@ -315,7 +316,7 @@ int get_signed_expression(char *str, int tp) {
         sym=validate_symbol(work);
         if ((!sym)||
             ((sym->tp!=LABEL)&&(sym->tp!=MACROL))) {
-          error(".BANKNUM operator is only valid for labels.",1);
+            fatal_error(".BANKNUM operator is only valid for labels.");
         } else {
           int bank=sym->bank&0xff;
           snprintf(work,256,"%d",bank);
@@ -339,7 +340,7 @@ int get_signed_expression(char *str, int tp) {
         if (!sym)
         {
             // The symbol does not exist yet, but we can still look in the undefined label list, it might be there later 
-            unkLabel* look = isUnk(work);
+            UnknownLabel* look = isUnknown(work);
             if (look)
                 *walk++ = '1';
             else
@@ -352,7 +353,7 @@ int get_signed_expression(char *str, int tp) {
             *walk++='0';
         }
       } else {
-        error("Invalid compiler directive in expression.",1);
+          fatal_error("Invalid compiler directive in expression.");
       }
     } else if (*look=='(') {
       look++;
@@ -375,17 +376,17 @@ int get_signed_expression(char *str, int tp) {
       if ((!sym)&&(tp)) {
         snprintf(buf,256,"Unknown symbol '%s'",work);
         dump_symbols();
-        error(buf,1);
+        fatal_error(buf);
       }
       if ((!sym)||((sym->tp==MACROL)&&(!sym->macroShadow))) {
-        unkLabel *look;
+        UnknownLabel *look;
 
-        look=isUnk(work);
+        look=isUnknown(work);
         if (look) {
           if (look->zp)
             return 0xff;
         } else {
-          addUnk(work);
+          addUnknown(work);
         }
         if (sym)  /* mws fix for overflow.m65 */
           return sym->addr;

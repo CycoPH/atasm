@@ -47,7 +47,15 @@ extern options opt;
 extern ihashNode *ihash[ISIZE];
 extern int warn;
 
-unsigned int err_crc32(const unsigned char *s, unsigned int len);
-int error(char *err, int tp);
+extern unsigned int err_crc32(const unsigned char *s, unsigned int len);
+extern int error(char *errorMessage, int tp);
+extern void message(char* msg);
+extern void fatal_error(char* errorMessage);
+
+extern char* replace(
+	char const* const original,
+	char const* const pattern,
+	char const* const replacement
+);
 
 #endif

@@ -1,3 +1,10 @@
+		* = $80
+var1 .ds 	128
+	; .ds 2
+
+.NOTIFY 1, "Page0: PC now at {{*}}" ; comment for this line
+.GUARD [* <= $100], "Memory {{%1}}-{{*}} overflow by {{%2}} bytes", var1, [*-$100] ; some comment
+	
 	* = $2000
 
 .proc start

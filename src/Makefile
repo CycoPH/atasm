@@ -59,7 +59,7 @@ install: all
 	chown root.root $(DESTDIR)/atasm || true
 	chmod 711 $(DESTDIR)/atasm
 	mkdir $(DOCDIR) >/dev/null 2>&1 || echo $(DOCDIR) already exists
-	cp ../atasm.txt $(DOCDIR)
+	cp ../docs/atasm.txt $(DOCDIR)
 	chown root.root $(DOCDIR)/atasm.txt || true
 	chmod 644 $(DOCDIR)/atasm.txt
 	sed -e 's,%%DOCDIR%%,$(DOCDIR),g' < atasm.1.in > atasm.1

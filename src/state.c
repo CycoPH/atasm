@@ -630,7 +630,7 @@ int templateType(char* fin) {
 	}
 	buf = (char*)malloc(8192);
 	if (!buf) {
-		error("Out of memory allocating room for state file.", 1);
+		fatal_error("Out of memory allocating room for state file.");
 	}
 	while (!feof(in)) {
 		result = fread(buf, 1, 8191, in);

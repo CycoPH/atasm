@@ -51,7 +51,7 @@
 
 macro* macro_list;
 macro_call* invoked;
-unkLabel* unkLabels;
+UnknownLabel* unknownLabels;
 symbol* hash[HSIZE];
 
 longJump* ljHash[HSIZE];
@@ -65,26 +65,31 @@ int repass, double_fwd;
  *
  * A function to determine if a symbol is forward defined
  *=========================================================================*/
-unkLabel* isUnk(char* unk) {
+UnknownLabel* isUnknown(char* pUnknown)
+{
 	char buf[256];
-	unkLabel* walk = unkLabels;
+	UnknownLabel* walk = unknownLabels;
 
-	/* munge macros and local vars */
-	if (unk[0] != '=') {
-		if (unk[0] == '?') {   /* Munge .LOCAL symbols */
+	// munge macros and local vars
+	if (pUnknown[0] != '=') 
+	{
+		if (pUnknown[0] == '?')    /* Munge .LOCAL symbols */
+		{
 			if (opt.MAElocals)
-				snprintf(buf, 256, "%s%s", opt.MAEname, unk);
+				snprintf(buf, 256, "%s%s", opt.MAEname, pUnknown);
 			else
-				snprintf(buf, 256, "=%d=%s", local, unk + 1);
-			unk = buf;
+				snprintf(buf, 256, "=%d=%s", local, pUnknown + 1);
+			pUnknown = buf;
 		}
-		if (invoked) { /* Munge macro symbols... */
-			snprintf(buf, 256, "=%.4x_%s=%s", invoked->orig->times, invoked->orig->name, unk);
-			unk = buf;
+		if (invoked) /* Munge macro symbols... */
+		{
+			snprintf(buf, 256, "=%.4x_%.64s=%.64s", invoked->orig->times, invoked->orig->name, pUnknown);
+			pUnknown = buf;
 		}
 	}
-	while (walk) {
-		if (!strcmp(walk->label, unk))
+	while (walk) 
+	{
+		if (!strcmp(walk->label, pUnknown))
 			return walk;
 		walk = walk->nxt;
 	}
@@ -99,9 +104,11 @@ unkLabel* isUnk(char* unk) {
  * (normally we assume that all forward-referenced symbols are non-zero
  *  page, but this is not always the case...)
  *=========================================================================*/
-void defUnk(char* unk, unsigned short addr) {
-	if (unk) {
-		unkLabel* look = isUnk(unk);
+void defineUnknown(char* unk, unsigned short addr)
+{
+	if (unk) 
+	{
+		UnknownLabel* look = isUnknown(unk);
 		if (!look)
 			return;
 		if ((!look->zp) && (addr < 256)) {
@@ -118,8 +125,9 @@ void defUnk(char* unk, unsigned short addr) {
 			look->zp = 1;
 			repass++;
 		}
-		else if (addr > 255) {
-			unkLabel* walk = unkLabels;
+		else if (addr > 255) 
+		{
+			UnknownLabel* walk = unknownLabels;
 			while ((walk) && (walk->nxt != look)) {
 				walk = walk->nxt;
 			}
@@ -139,37 +147,43 @@ void defUnk(char* unk, unsigned short addr) {
  *
  * A function to track forward defined symbols
  *=========================================================================*/
-void addUnk(char* unk) {
-	if (unk) {
+void addUnknown(char* pUnknown)
+{
+	if (pUnknown)
+	{
 		char buf[256];
-		unkLabel* look;
 
 		/* munge macros and local vars */
-		if (unk[0] == '?') {   /* Munge .LOCAL symbols */
+		if (pUnknown[0] == '?') /* Munge .LOCAL symbols */
+		{
 			if (opt.MAElocals)
-				snprintf(buf, 256, "%s%s", opt.MAEname, unk);
+				snprintf(buf, 256, "%s%s", opt.MAEname, pUnknown);
 			else
-				snprintf(buf, 256, "=%d=%s", local, unk + 1);
-			unk = buf;
+				snprintf(buf, 256, "=%d=%s", local, pUnknown + 1);
+			pUnknown = buf;
 		}
-		if (invoked) { /* Munge macro symbols... */
-			snprintf(buf, 256, "=%.4x_%s=%s", invoked->orig->times, invoked->orig->name, unk);
-			unk = buf;
+		if (invoked) /* Munge macro symbols... */
+		{
+			snprintf(buf, 256, "=%.4x_%.64s=%.64s", invoked->orig->times, invoked->orig->name, pUnknown);
+			pUnknown = buf;
 		}
-		look = isUnk(unk);
-		if (!look) {
-			unkLabel* u = (unkLabel*)malloc(sizeof(unkLabel));
-			if (!u) {
-				error("Out of memory allocating symbol.", 1);
+		UnknownLabel* look = isUnknown(pUnknown);
+		if (!look)
+		{
+			UnknownLabel* u = (UnknownLabel*)malloc(sizeof(UnknownLabel));
+			if (!u)
+			{
+				fatal_error("Out of memory allocating symbol.");
 			}
-			u->nxt = unkLabels;
+			u->nxt = unknownLabels;
 			u->zp = 0;
-			unkLabels = u;
-			u->label = (char*)malloc(strlen(unk) + 1);
-			if (!u->label) {
-				error("Out of memory allocating symbol.", 1);
+			unknownLabels = u;
+			u->label = (char*)malloc(strlen(pUnknown) + 1);
+			if (!u->label)
+			{
+				fatal_error("Out of memory allocating symbol.");
 			}
-			strcpy(u->label, unk);
+			strcpy(u->label, pUnknown);
 		}
 	}
 }
@@ -180,11 +194,12 @@ void addUnk(char* unk) {
  *
  * A function to clean up forward referenced labels
  *=========================================================================*/
-void cleanUnk() {
-	unkLabel* kill;
-	while (unkLabels) {
-		kill = unkLabels;
-		unkLabels = unkLabels->nxt;
+void cleanUnknowns(void)
+{
+	while (unknownLabels) 
+	{
+		UnknownLabel* kill = unknownLabels;
+		unknownLabels = unknownLabels->nxt;
 		free(kill->label);
 		free(kill);
 	}
@@ -196,7 +211,8 @@ void cleanUnk() {
  *
  * clear symbol table if multi-pass is necessary
  *=========================================================================*/
-void fixRepass() {
+void fixRepass()
+{
 	symbol* sym;
 	macro_line* macl, * killml;
 	macro* mac, * killm;
@@ -241,7 +257,7 @@ void fixRepass() {
   by Peter K. Pearson, CACM, June 1990.
   Pseudorandom Permutation of the Integers 0 through 255: Table from p. 678.
  *=========================================================================*/
-static unsigned randomNumbers[] = {
+static int randomNumbers[] = {
   1, 14,110, 25, 97,174,132,119,138,170,125,118, 27,233,140, 51,
   87,197,177,107,234,169, 56, 68, 30,  7,173, 73,188, 40, 36, 65,
   49,213,104,190, 57,211,148,223, 48,115, 15,  2, 67,186,210, 28,
@@ -265,11 +281,13 @@ static unsigned randomNumbers[] = {
  *
  * A function to take a string and generates a number between 0-HSIZE
  *=========================================================================*/
-int hashit(char* name) {
+int hashit(char* name)
+{
 	int hash1 = 0;
 	int hash2 = 0;
 
-	while (*name != 0) {
+	while (*name != 0)
+	{
 		/* Hash function is XOR of successive characters, randomized by
 		 * the hash table. */
 		hash1 ^= randomNumbers[(int)*name++];
@@ -278,6 +296,7 @@ int hashit(char* name) {
 	}
 	return ((hash1 << 8) | hash2) % HSIZE;
 }
+
 /*=========================================================================*
  * function findsym(char *name)
  * parameters: name - the name of the symbol to find
@@ -285,31 +304,35 @@ int hashit(char* name) {
  * Looks up a given word and returns either the correct structure or a NULL
  * if the word is unknown.
  *=========================================================================*/
-symbol* findsym(char* name) {
-	int i;
-	symbol* walk;
+symbol* findsym(char* name)
+{
 	macro_call* stack = invoked;
 	char nbuf[256], buf[256], * look;
 
-	if (name[0] == '?') {   /* Munge .LOCAL symbols */
+	if (name[0] == '?') /* Munge .LOCAL symbols */
+	{
 		if (opt.MAElocals)
 			snprintf(nbuf, 256, "%s%s", opt.MAEname, name);
 		else
 			snprintf(nbuf, 256, "=%d=%s", local, name + 1);
 		name = nbuf;
 	}
-	while (1) {
-		if (stack) { /* Munge macro symbols... */
-			snprintf(buf, 256, "=%.4x_%s=%s", stack->orig->times, stack->orig->name, name);
+	while (1)
+	{
+		if (stack) /* Munge macro symbols... */
+		{
+			snprintf(buf, 256, "=%.4x_%.64s=%.64s", stack->orig->times, stack->orig->name, name);
 			look = buf;
 		}
 		else
 			look = name;
 
-		i = hashit(look);      /* Find word index */
-		walk = hash[i];        /* Get initial pointer */
-		while (walk) {       /* Search list for word */
-			if (!strcmp(walk->name, look)) {
+		int i = hashit(look);		// Find word index
+		symbol* walk = hash[i];		// Get initial pointer
+		while (walk)				// Search list for word
+		{
+			if (!strcmp(walk->name, look)) 
+			{
 				return walk;
 			}
 			walk = walk->nxt;
@@ -385,7 +408,7 @@ symbol* get_sym() {
 
 	sym = (symbol*)malloc(sizeof(symbol));
 	if (!sym) {
-		error("Out of memory allocating new symbol.", 1);
+		fatal_error("Out of memory allocating new symbol.");
 	}
 	sym->nxt = sym->lnk = sym->mlnk = NULL;
 	sym->orig = sym->name = sym->macroShadow = NULL;
@@ -658,7 +681,7 @@ int dump_labels(char* fname)
  * function dump_c_header
  * prints out all symbols entered into the symbol table in c header format
  *=========================================================================*/
-int dump_c_header(char* header_fname, char* asm_fname)
+int dump_c_header(const char* header_filename, char* asm_filename)
 {
 	symbol* sym, * head;
 	char cheader_name[256];
@@ -670,24 +693,28 @@ int dump_c_header(char* header_fname, char* asm_fname)
 	int maxLength;
 
 	/* Generate the #if check name */
-	for (runner = asm_fname + strlen(asm_fname); runner >= asm_fname; runner--)
+	for (runner = asm_filename + strlen(asm_filename); runner >= asm_filename; runner--)
 	{
 		if (*runner == '/' || *runner == '\\')
 			break;
 	}
 
-	if (runner >= asm_fname) {
+	if (runner >= asm_filename) {
 		strcpy(cheader_name, runner + 1);
 	}
 	else {
 		/* There is no delimiter: the entire string must be a filename. */
-		strcpy(cheader_name, asm_fname);
+		strcpy(cheader_name, asm_filename);
 	}
 
 	/* Find the basename of the file (no extension). We stop at the first . */
-	for (runner = cheader_name; *runner && *runner != '.'; ++runner);
+	for (runner = cheader_name; *runner && *runner != '.'; ++runner)
+	{
+		
+	}
 	memset(base_name, 0, sizeof(base_name));
-	strncpy(base_name, cheader_name, (char*)runner - cheader_name);
+	if ((char*)runner - cheader_name > 0)
+		strncpy(base_name, cheader_name, (char*)runner - cheader_name);
 
 	/* Figure out the ifndef name for the header file */
 	for (runner = cheader_name; *runner; ++runner) {
@@ -700,7 +727,7 @@ int dump_c_header(char* header_fname, char* asm_fname)
 		*runner = toupper(*runner);
 	}
 
-	out = fopen(header_fname, "wb");
+	out = fopen(header_filename, "wb");
 	if (!out)
 		return 0;
 
@@ -1039,7 +1066,7 @@ macro_call* get_macro_call(char* name) {
 		if (!strcmp(name, walk->name)) {
 			call = (macro_call*)malloc(sizeof(macro_call));
 			if (!call) {
-				error("Out of memory allocating macro.", 1);
+				fatal_error("Out of memory allocating macro.");
 			}
 			call->argc = 0;
 			call->orig = walk;
@@ -1105,25 +1132,25 @@ int macro_subst(char* name, char* in, macro_line* args, int max) {
 					while ((*look) && (*look != ')') && (i < 255))
 						num[i++] = *look++;
 					if (i == 256)
-						error("Label overflow in macro parameter", 1);
+						fatal_error("Label overflow in macro parameter");
 					if (*look == ')')
 						look++;
 					num[i] = 0;
 					sym = findsym(num);
 					if (!sym) {
 						snprintf(buf, 256, "Reference to undefined label '%s' in macro", num);
-						error(buf, 1);
+						fatal_error(buf);
 					}
 					if ((sym->tp != LABEL) && (sym->tp != MACROL) && (sym->tp != MACROQ) &&
 						(sym->tp != EQUATE) && (sym->tp != TEQUATE))
-						error("Illegal label type in macro parameter", 1);
+						fatal_error("Illegal label type in macro parameter");
 					pnum = sym->addr;
 				}
 				else {  /* Normal parameter idx */
 					while ((ISDIGIT(*look)) && (i < 15))
 						num[i++] = *look++;
 					if (i == 15)
-						error("Number overflow in macro parameter", 1);
+						fatal_error("Number overflow in macro parameter");
 					num[i] = 0;
 					sscanf(num, "%d", &pnum);
 				}
@@ -1165,10 +1192,10 @@ int macro_subst(char* name, char* in, macro_line* args, int max) {
 						walk = buf + strlen(buf);
 					}
 					else
-						error("Not enough parameters passed to macro.", 1);
+						fatal_error("Not enough parameters passed to macro.");
 				}
 			}
-			else error("Invalid macro parameter reference.", 1);
+			else fatal_error("Invalid macro parameter reference.");
 		}
 		else {
 			*walk++ = *look++;
@@ -1201,7 +1228,7 @@ int create_macro(symbol* sym) {
 
 	str = get_nxt_word(PARSE_NEXT_LINE);
 	if (!str)
-		error("No macro name specified.", 1);
+		fatal_error("No macro name specified.");
 	m = (macro*)malloc(sizeof(macro));
 	m->mlabels = NULL;
 	m->times = 0;
@@ -1236,7 +1263,7 @@ int create_macro(symbol* sym) {
 		else {
 			snprintf(err, 256, "Invalid macro name '%s', name already in use.\n", entry->name);
 		}
-		error(err, 1);
+		fatal_error(err);
 	}
 	addsym(entry);
 	tail = NULL;
@@ -1244,24 +1271,24 @@ int create_macro(symbol* sym) {
 	while (1) {
 		str = get_nxt_word(PARSE_NEXT_LINE);
 		if (!str)
-			error("Unterminated Macro", 1);
+			fatal_error("Unterminated Macro");
 
 		if (!STRCASECMP(str, ".ENDM"))
 			break;
 		if (!STRCASECMP(str, ".MACRO"))
-			error("No nested macro definitions.", 1);
+			fatal_error("No nested macro definitions.");
 
 		str = get_nxt_word(PARSE_CURRENT_LINE);  /* Retrieve entire line */
 		get_nxt_word(PARSE_LINE_REST);      /* Reset line to force read */
 		m->num++;
 		line = (macro_line*)malloc(sizeof(macro_line));
 		if (!line) {
-			error("Out of memory allocating macro.", 1);
+			fatal_error("Out of memory allocating macro.");
 		}
 		line->nxt = 0;
 		line->line = (char*)malloc(strlen(str) + 1);
 		if (!line->line) {
-			error("Out of memory allocating macro.", 1);
+			fatal_error("Out of memory allocating macro.");
 		}
 		strcpy(line->line, str);
 		if (!m->lines)
@@ -1313,12 +1340,12 @@ int macro_param(macro_call* mc, char* cmd) {
 		n++;
 		line = (macro_line*)malloc(sizeof(macro_line));
 		if (!line) {
-			error("Out of memory allocating macro parameter.", 1);
+			fatal_error("Out of memory allocating macro parameter.");
 		}
 		line->nxt = 0;
 		line->line = (char*)malloc(strlen(param) + 1);
 		if (!line->line) {
-			error("Out of memory allocating macro parameter.", 1);
+			fatal_error("Out of memory allocating macro parameter.");
 		}
 		strcpy(line->line, param);
 		if (!mc->cmd)
@@ -1387,25 +1414,25 @@ int do_rept(symbol* sym) {
 
 	str = get_nxt_word(PARSE_NEXT_LINE);
 	if (!str)
-		error("No repetition parameter specified.", 1);
+		fatal_error("No repetition parameter specified.");
 
 	squeeze_str(str);
 	num = get_expression(str, 0, 0);
 	if (num == 0xffff)
-		error("Malformed repeat value.", 1);
+		fatal_error("Malformed repeat value.");
 
 	/*  if ((!ISDIGIT(str[0]))&&(str[0]!='$'))
-		error("Malformed repeat value.",1);
+		fatal_error("Malformed repeat value.");
 
 	printf("Repeat block %d\n",num);
 	*/
 	m = (macro*)malloc(sizeof(macro));
 	if (!m) {
-		error("Cannot allocate memory for repeat block.", 1);
+		fatal_error("Cannot allocate memory for repeat block.");
 	}
 	m->name = (char*)malloc(13);
 	if (!m->name) {
-		error("Cannot allocate memory for repeat block.", 1);
+		fatal_error("Cannot allocate memory for repeat block.");
 	}
 	strcpy(m->name, "repeat block");
 	m->mlabels = NULL;
@@ -1419,27 +1446,27 @@ int do_rept(symbol* sym) {
 	while (1) {
 		str = get_nxt_word(PARSE_NEXT_LINE);
 		if (!str)
-			error("Unterminated repeat statement", 1);
+			fatal_error("Unterminated repeat statement");
 
 		if (!STRCASECMP(str, ".ENDR"))
 			break;
 		if (!STRCASECMP(str, ".REPT"))
-			error("No nested repeat blocks.", 1);
+			fatal_error("No nested repeat blocks.");
 		if ((!STRCASECMP(str, ".MACRO")) ||
 			(!STRCASECMP(str, ".ENDM"))) {
-			error("No macro definitions inside repeat blocks.", 1);
+			fatal_error("No macro definitions inside repeat blocks.");
 		}
 
 		str = get_nxt_word(PARSE_CURRENT_LINE);  /* Retrieve entire line */
 		get_nxt_word(PARSE_LINE_REST);      /* Reset line to force read */
 		line = (macro_line*)malloc(sizeof(macro_line));
 		if (!line) {
-			error("Error allocting memory for repeat.", 1);
+			fatal_error("Error allocating memory for repeat.");
 		}
 		line->nxt = NULL;
 		line->line = (char*)malloc(strlen(str) + 1);
 		if (!line->line) {
-			error("Error allocting memory for repeat.", 1);
+			fatal_error("Error allocating memory for repeat.");
 		}
 		strcpy(line->line, str);
 		if (!m->lines)
@@ -1451,7 +1478,7 @@ int do_rept(symbol* sym) {
 	}
 	rept = (macro_call*)malloc(sizeof(macro_call));
 	if (rept == NULL)
-		error("Error allocating memory for repeat.", 1);
+		fatal_error("Error allocating memory for repeat.");
 	rept->argc = 0;
 	rept->orig = m;
 	rept->cmd = NULL;
@@ -1506,7 +1533,7 @@ void clean_up() {
 	macro_line* macl, * killml;
 	int i;
 
-	cleanUnk();
+	cleanUnknowns();
 	sym = linkit();  /* Free symbol table entries... */
 	while (sym) {
 		if ((sym->tp != OPCODE) && (sym->tp != DIRECT)) {

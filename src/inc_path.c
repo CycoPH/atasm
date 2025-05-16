@@ -61,11 +61,11 @@ str_list *init_include() {
 
   head=(str_list*)malloc(sizeof(str_list));
   if (head==NULL)
-    error("Cannot allocate memory to initialize include list",1);
+      fatal_error("Cannot allocate memory to initialize include list");
   head->next = NULL;
   head->str = (char*)malloc(2);
   if (head->str==NULL)
-    error("Cannot allocate memory to initialize include list",1);
+      fatal_error("Cannot allocate memory to initialize include list");
   head->str[0]='.';
   head->str[1]=0;
   return head;
@@ -92,10 +92,10 @@ void append_include(str_list *head, char *path) {
 
   append=(str_list *)malloc(sizeof(str_list));
   if(!append)
-    error("Cannot grow include list",1);
+      fatal_error("Cannot grow include list");
   append->str=(char*)malloc(strlen(path)+1);
   if (append->str == NULL)
-    error("Cannot grow include list",1);
+      fatal_error("Cannot grow include list");
   strcpy(append->str, path);
   append->next=NULL;
   walk->next=append;
@@ -127,7 +127,7 @@ FILE *fopen_include(str_list *head, char *fname, int is_binary, char* store_fnam
   /* Now test with include paths... */
   full_path = (char*)malloc(MAX_PATH);
   if(full_path==NULL)
-    error("Cannot allocate MAX_PATH bytes in fopen_include",1);
+      fatal_error("Cannot allocate MAX_PATH bytes in fopen_include");
 
   while(head) {
     full_path[0] = '\0';
@@ -144,7 +144,7 @@ FILE *fopen_include(str_list *head, char *fname, int is_binary, char* store_fnam
   }
   free(full_path);
   snprintf(errbuf,255,"Cannot open file: '%s'", fname);
-  error(errbuf, 1);
+  fatal_error(errbuf);
   return NULL;
 }
 /*=========================================================================*/

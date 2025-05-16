@@ -22,7 +22,7 @@
 #define SYMBOL_H
 
 #define MAJOR_VER 1
-#define MINOR_VER 29
+#define MINOR_VER 30
 #define BETA_VER 0
 
  /*==========================================================================*/
@@ -38,7 +38,6 @@
 
 #define DUMP_ALL        (DUMP_CONSTANTS | DUMP_LABELS_PRIMARY | DUMP_MACROS)
 
-
 /*==========================================================================*/
 typedef struct file_tracking /* Track the filename */
 {
@@ -47,7 +46,8 @@ typedef struct file_tracking /* Track the filename */
 } file_tracking;
 
 /*==========================================================================*/
-typedef struct memory_name /* Name of a memory region */
+/* Name of a memory region */
+typedef struct memory_name 
 {
 	int addr;               // Address of the memory region start
 	char* name;             // Name given to this memory region
@@ -108,16 +108,19 @@ typedef struct symbol
 } symbol;
 
 /*==========================================================================*/
-typedef struct unkLabel {
+typedef struct UnknownLabel
+{
 	char* label;
 	int zp;
-	struct unkLabel* nxt;
-} unkLabel;
+	struct UnknownLabel* nxt;
+} UnknownLabel;
+
 /*==========================================================================*/
 typedef struct strList {
 	char* str;
 	struct strList* next;
 } str_list;
+
 /*==========================================================================*/
 /* Some defines for symbol types -- see above comment */
 #define OPCODE 0
@@ -148,12 +151,12 @@ typedef struct macro_line { /* an entry in a macro */
 	struct macro_line* nxt;
 } macro_line;
 /*==========================================================================*/
-typedef struct macro {  /* a macro */
-	char* name;           /* name */
-	int tp, param, num;    /* number of parameters, # lines */
-	short times;          /* number of invoke actions */
-	macro_line* lines;    /* The actual text */
-	symbol* mlabels;      /* assembled labels */
+typedef struct macro {		/* a macro */
+	char* name;				/* name */
+	int tp, param, num;		/* number of parameters, # lines */
+	short times;			/* number of invoke actions */
+	macro_line* lines;		/* The actual text */
+	symbol* mlabels;		/* assembled labels */
 	struct macro* nxt;
 } macro;
 /*==========================================================================*/
@@ -178,7 +181,7 @@ extern macro* macro_list;
 extern macro_call* invoked;
 extern MemoryBank* memoryBanks, * activeBank;
 extern char* outline;  /* the line of text written out in verbose mode */
-extern unkLabel* unkLabels; /* list of unknown, referenced symbols */
+extern UnknownLabel* unknownLabels; /* list of unknown, referenced symbols */
 
 extern int double_fwd; /* flag indicating a double forward reference occured */
 
@@ -233,7 +236,7 @@ void remsym(symbol* wrd);
 symbol* get_sym();
 int dump_symbols();
 int dump_labels(char* fname);
-int dump_c_header(char* header_fname, char* asm_fname);
+int dump_c_header(const char* header_filename, char* asm_filename);
 int dump_assembler_header(char* header_fname);
 void dump_VSCode(file_tracking* trackedFiles, int partsToDump);
 macro_call* get_macro_call(char* name);
@@ -245,7 +248,7 @@ int clear_ref();
 int do_rept(symbol* sym);
 int del_rept(macro_call* kill);
 
-void cleanUnk();
+void cleanUnknowns(void);
 void fixRepass();
 int find_extension(char* name);
 
@@ -257,9 +260,9 @@ void process_predef(str_list* def);
 
 void clean_up();
 
-void addUnk(char* unk);
-unkLabel* isUnk(char* unk);
-void defUnk(char* unk, unsigned short addr);
+void addUnknown(char* pUnknown);
+UnknownLabel* isUnknown(char* pUnknown);
+void defineUnknown(char* unk, unsigned short addr);
 
 int clear_banks(void);
 void kill_banks();

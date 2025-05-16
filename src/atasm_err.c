@@ -29,10 +29,57 @@
 #include <string.h>
 
 #include "atasm_err.h"
+
+#include "compat.h"
 #include "symbol.h"
 
 #define ISIZE 128
 ihashNode* ihash[ISIZE];
+
+
+char* replace(
+	char const* const original,
+	char const* const pattern,
+	char const* const replacement
+) {
+	size_t const replen = strlen(replacement);
+	size_t const patlen = strlen(pattern);
+	size_t const orilen = strlen(original);
+
+	size_t patcnt = 0;
+	const char* oriptr;
+	const char* patloc;
+
+	// find how many times the pattern occurs in the original string
+	for (oriptr = original; (patloc = strstr(oriptr, pattern)); oriptr = patloc + patlen)
+	{
+		patcnt++;
+	}
+
+	// allocate memory for the new string
+	size_t const retlen = orilen + patcnt * (replen - patlen);
+	char* const returned = (char*)malloc(sizeof(char) * (retlen + 1));
+
+	if (returned != NULL)
+	{
+		// copy the original string, 
+		// replacing all the instances of the pattern
+		char* retptr = returned;
+		for (oriptr = original; (patloc = strstr(oriptr, pattern)); oriptr = patloc + patlen)
+		{
+			size_t const skplen = patloc - oriptr;
+			// copy the section until the occurence of the pattern
+			strncpy(retptr, oriptr, skplen);
+			retptr += skplen;
+			// copy the replacement 
+			strcpy(retptr, replacement);
+			retptr += replen;
+		}
+		// copy the rest of the string.
+		strcpy(retptr, oriptr);
+	}
+	return returned;
+}
 
 /*=========================================================================*
  * Function: errAdd, add an item to the warning table
@@ -52,7 +99,7 @@ void errAdd(unsigned int id, unsigned int num) {
 
 	in = (ihashNode*)malloc(sizeof(ihashNode));
 	if (!in) {
-		error("Out of memory creating warning table", 1);
+		fatal_error("Out of memory creating warning table");
 	}
 	in->id = id;
 	in->data = num;
@@ -96,20 +143,83 @@ int errCheck(unsigned int id, unsigned int num) {
 	}
 	return 0;
 }
+
+void fatal_error(char* errorMessage)
+{
+	error(errorMessage, 1);
+	exit(1);
+}
+
+char *InjectPC(const char* msg)
+{
+	// Look for {*} in the error message and replace it with the current PC
+	if (strstr(msg, "{{*}}")) {
+		char PC[20];
+		sprintf(PC, "$%04X", pc);
+		return replace(msg, "{{*}}", PC);
+	}
+	return NULL;
+}
+
+void message(char *msg)
+{
+	char* filename = "UNKNOWN";
+	int lineNumber = 0;
+	char macroMsg[256];
+	macroMsg[0] = 0;
+
+	char* processedErrorMsg = InjectPC(msg);
+
+	if (fin)
+	{
+		char buf[256];
+
+		snprintf(buf, 256, "%s%d%s", fin->name, fin->line, processedErrorMsg ? processedErrorMsg : msg);
+		unsigned int crc = err_crc32((unsigned char*)buf, (int)strlen(buf));
+		if (errCheck(crc, fin->line))
+		{
+			if (processedErrorMsg)
+				free(processedErrorMsg);
+			return;
+		}
+		else
+			errAdd(crc, fin->line);
+
+		filename = fin->name;
+		lineNumber = fin->line;
+
+		if (invoked)
+			sprintf(macroMsg, "--[while expanding macro '%.200s']", invoked->orig->name);
+	}
+	fprintf(stderr, "\n %s: %s:%d: %s%s\n",
+		"Message",
+		filename, lineNumber,
+		processedErrorMsg ? processedErrorMsg : msg,
+		macroMsg
+	);
+
+	if (processedErrorMsg)
+		free(processedErrorMsg);
+
+	return;
+}
+
 /*=========================================================================*
- * function error(char *err, int errLevel)
- * parameters: err - the error message
+ * function error(char *errorMessage, int errLevel)
+ * parameters: errorMessage - the error message
  *             errLevel  - the error severity (0=warning, else fatal error)
  *
  * generates an error/warning message to stderr, including the position
  * of the error
  *=========================================================================*/
-int error(char* err, int errLevel)
+int error(char* errorMessage, int errLevel)
 {
 	char* filename = "UNKNOWN";
 	int lineNumber = 0;
-	char macroMsg[1024];
+	char macroMsg[256];
 	macroMsg[0] = 0;
+
+	char* processedErrorMsg = InjectPC(errorMessage);
 
 	if (opt.warn == 0 && errLevel == 0) {
 		// Suppress warnings, if option no warn set
@@ -119,12 +229,15 @@ int error(char* err, int errLevel)
 	if (fin)
 	{
 		char buf[256];
-		unsigned int crc;
 
-		snprintf(buf, 256, "%s%d%s", fin->name, fin->line, err);
-		crc = err_crc32((unsigned char*)buf, (int)strlen(buf));
+		snprintf(buf, 256, "%s%d%s", fin->name, fin->line, processedErrorMsg ? processedErrorMsg : errorMessage);
+		unsigned int crc = err_crc32((unsigned char*)buf, (int)strlen(buf));
 		if (errCheck(crc, fin->line))
+		{
+			if (processedErrorMsg)
+				free(processedErrorMsg);
 			return 1;
+		}
 		else
 			errAdd(crc, fin->line);
 
@@ -132,7 +245,7 @@ int error(char* err, int errLevel)
 		lineNumber = fin->line;
 
 		if (invoked)
-			sprintf(macroMsg, "--[while expanding macro '%s']", invoked->orig->name);
+			sprintf(macroMsg, "--[while expanding macro '%.200s']", invoked->orig->name);
 
 		//fprintf(stderr, "\nIn %s\n ", fin->name);
 		/*if (!invoked)
@@ -144,9 +257,13 @@ int error(char* err, int errLevel)
 	fprintf(stderr, "\n %s: %s:%d: %s%s\n",
 		errLevel ? "Error" : "Warning",
 		filename, lineNumber,
-		err,
+		processedErrorMsg ? processedErrorMsg : errorMessage,
 		macroMsg
 	);
+
+	if (processedErrorMsg)
+		free(processedErrorMsg);
+
 	if (errLevel)
 	{
 		// Exit on error
@@ -157,9 +274,10 @@ int error(char* err, int errLevel)
 	warn++;
 	return 0;
 }
+
 /*=========================================================================*/
-
-
-int floaterror(char* err) {
-	return error(err, 1);
+void floaterror(char* err)
+{
+	error(err, 1);
+	exit(1);
 }

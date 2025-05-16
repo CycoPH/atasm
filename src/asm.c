@@ -356,7 +356,7 @@ int init_asm() {
 	fin = NULL;
 	macro_list = NULL;
 	invoked = NULL;
-	unkLabels = NULL;
+	unknownLabels = NULL;
 	memoryBanks = NULL;
 	bankID = -1;
 	trackedFiles = NULL; /* keep track of all filenames used, 0 indexed */
@@ -376,7 +376,7 @@ int init_asm() {
 	activeBank = get_bank(0, 0);
 
 	if (outline == NULL || activeBank == NULL) {
-		error("Cannot allocate memory snapshot.", 1);
+        fatal_error("Cannot allocate memory snapshot.");
 	}
 
 	ops = NUM_OPS;
@@ -417,7 +417,7 @@ file_tracking* track_filename(char* fname)
     /* not found, let add the file to the list */
     file_tracking* tnew = (file_tracking*)malloc(sizeof(file_tracking));
     if (tnew == NULL) {
-        error("Out of memory allocating filename tracker", 1);
+        fatal_error("Out of memory allocating filename tracker");
     }
     tnew->name = STRDUP(fname);
     tnew->nxt = trackedFiles;
@@ -470,7 +470,7 @@ memory_name* saveNamedMemoryRegion(int addr, char* name)
     /* not found, let add the file to the list */
     memory_name* tnew = (memory_name*)malloc(sizeof(memory_name));
     if (tnew == NULL) {
-        error("Out of memory allocating memory region name tracker", 1);
+        fatal_error("Out of memory allocating memory region name tracker");
     }
     tnew->addr = addr;
     tnew->name = STRDUP(name);
@@ -509,18 +509,18 @@ int open_file(char *fname) {
 
   fnew=(file_stack *)malloc(sizeof(file_stack));
   if (!fnew) {
-    error("Out of memory allocating filename", 1);
+      fatal_error("Out of memory allocating filename");
   }
   fnew->name=(char *)malloc(strlen(fname)+1);
   if (!fnew->name) {
-      error("Out of memory allocating filename", 1);
+      fatal_error("Out of memory allocating filename");
   }
   strcpy(fnew->name,fname);
 
   fnew->in = fopen_include(includes, fname, 0, final_fname);
   if (!fnew->in) {
     snprintf(buf,256,"Cannot open file '%s'\n",fname);
-    error(buf,1);
+    fatal_error(buf);
   }
   fnew->trackClear = NULL;          /* Location in aprintf to clear when the file_stack object is deleted */
   fnew->line=0;
@@ -571,8 +571,10 @@ void aprintf(char* msg, ...) {
 				fprintf(listFile, "\nSource: %s\n", fin->name);
 			}
 			/* convert address from LE to BE display */
-			strncpy(buf, line + 3, 2);
-			strncpy(buf + 2, line, 2);
+            buf[0] = line[3];
+            buf[1] = line[4];
+            buf[2] = line[0];
+			buf[3] = line[1];
 			buf[4] = 0;
 			fprintf(listFile, "%d %s%s", fin->line, buf, line + 5);
 		}
@@ -687,7 +689,7 @@ char *get_nxt_word(int tp) {
 			  return buf;
 		  }
 		  if (!fin)
-			  error("No active file handle.", 1);
+              fatal_error("No active file handle.");
 		  outline[0] = 0;
 		  memset(line, 0, 256);
 		  memset(buf, 0, 256);
@@ -844,7 +846,7 @@ char *get_nxt_word(int tp) {
     *look=0;
 
   if (instr)
-    error("Unterminated string constant.",1);
+      fatal_error("Unterminated string constant.");
 
   if (l) {
     /* Skip to next token if available */
@@ -888,11 +890,11 @@ int put_byte(int b) {
   }
   opc=pc+activeBank->offset;
   if (opc<0)
-    error("Address underflow",1);
+      fatal_error("Address underflow");
 
   a=opc>>3;
   if (a>8192)
-    error("Address overflow",1);
+      fatal_error("Address overflow");
 
   if (opt.obj) {
     activeBank->memmap[opc]=v;
@@ -961,7 +963,7 @@ int put_float(char *f) {
     look++;
   }
   if (!(*look))
-    error("Malformed floating point constant.",1);
+      fatal_error("Malformed floating point constant.");
 
   /* strip excess leading 0s */
   while((*look=='0')&&(*(look+1)=='0')&&(*look))
@@ -985,11 +987,11 @@ int put_float(char *f) {
   while(*look) { /* strip out decimal point */
     if (*look=='.') {
       if (d!=-1)
-        error("Malformed floating point constant.",1);
+          fatal_error("Malformed floating point constant.");
       d=i;
       look++;
     } else if (!ISDIGIT(*look))
-      error("Malformed floating point constant.",1);
+        fatal_error("Malformed floating point constant.");
     else if (i<16)
       *walk++=*look++;
     else
@@ -1049,7 +1051,7 @@ int put_float(char *f) {
  *=========================================================================*/
 int put_opcode(int b) {
   if (b==-1)
-    error("Illegal addressing mode.",1);
+      fatal_error("Illegal addressing mode.");
   else
     put_byte(b);
 
@@ -1133,15 +1135,15 @@ int add_label(char *label) {
   }
 
   if (!strcmp(label,"A")) {
-    error("'A' is a reserved operand.",1);
+      fatal_error("'A' is a reserved operand.");
   }
 
   if (!pass) {
     if (!((label[0]=='@')||(label[0]=='?')||(label[0]=='_')||(ISALPHA(label[0])))) {
-      error("Illegal label name, must start with '@','?', or a letter.",1);
+        fatal_error("Illegal label name, must start with '@','?', or a letter.");
     }
     if (strchr(label,'='))
-      error("Illegal label (cannot contain '=')",1);
+        fatal_error("Illegal label (cannot contain '=')");
     sym=get_sym();
     /* Set the original name of the symbol, nothing is processed yet */
     sym->orig = STRDUP(label);
@@ -1154,7 +1156,7 @@ int add_label(char *label) {
       if (opt.MAElocals) {
         int len;
         if (!opt.MAEname) {
-          error("Local label must occur after a global label.",1);
+            fatal_error("Local label must occur after a global label.");
         }
         len=(int)strlen(opt.MAEname)+(int)strlen(label)+1;
         sym->name=(char *)malloc(len);
@@ -1178,7 +1180,7 @@ int add_label(char *label) {
       free(sym->name);
       sym->name=malloc(strlen(label)+strlen(invoked->orig->name)+10);
       if (!sym->name) {
-        error("Cannot allocate memory for label during macro instantiation.", 1);
+          fatal_error("Cannot allocate memory for label during macro instantiation.");
       }
       sprintf(sym->name,"=%.4x_%s=%s",invoked->orig->times,invoked->orig->name,label);
       sym->macroShadow=strchr(sym->name+1,'=')+1;
@@ -1197,7 +1199,7 @@ int add_label(char *label) {
           nsym->ftrack = fin->ftrack;
           nsym->name=(char *)malloc(strlen(label)+1);
           if (!nsym->name) {
-            error("Cannot allocate room for macro during macro instantiation.", 1);
+              fatal_error("Cannot allocate room for macro during macro instantiation.");
           }
           strcpy(nsym->name,label);
           nsym->tp=MACROL;
@@ -1223,7 +1225,7 @@ int add_label(char *label) {
       sym->bank=activeBank->reportedBankNr;
     }
     if (sym->tp==LABEL) {
-      defUnk(sym->name,pc);
+      defineUnknown(sym->name,pc);
       sym->bank=activeBank->reportedBankNr;
     }
     addsym(sym);
@@ -1233,7 +1235,7 @@ int add_label(char *label) {
     if (!sym) {
       char buf[256];
       sprintf(buf,"Cannot find label %s", label);
-      error(buf,1);
+      fatal_error(buf);
     }
     str=get_nxt_word(PARSE_LINE_REST);
 
@@ -1248,7 +1250,7 @@ int add_label(char *label) {
       sym->bank=activeBank->reportedBankNr;
     }
     eq=0;
-    defUnk(sym->name,sym->addr);
+    defineUnknown(sym->name,sym->addr);
   }
   return 1;
 }
@@ -1278,7 +1280,7 @@ int parse_operand(symbol* sym, char* str)
 			idx++;
 			vidx = TOUPPER(*idx);
 			if ((vidx != 'X') && (vidx != 'Y'))
-				error("Illegal index", 1);
+                fatal_error("Illegal index");
 			if ((vidx == 'X') && (str[0] == '(')) {
 				*idx = 0;
 				idx--;
@@ -1301,20 +1303,20 @@ int parse_operand(symbol* sym, char* str)
 
 			if (sym->addr == OPI_JMP) { /* JMP indirect abs */
 				if (vidx)
-					error("Illegal indirect JMP", 1);
+                    fatal_error("Illegal indirect JMP");
 				cmd = ind[sym->addr];
 				xtnd = 1;           /* fix indirect JMP size */
 			}
 			else {
 				if (!vidx) {
-					error("Illegal indirect reference", 1);
+                    fatal_error("Illegal indirect reference");
 				}
 				else if (vidx == 'X')
 					cmd = i_x[sym->addr];
 				else
 					cmd = i_y[sym->addr];
 				if ((pass) && (a > 255))
-					error("Illegal zero page reference.", 1);
+                    fatal_error("Illegal zero page reference.");
 			}
 			if (pass) {
 				put_opcode(cmd);
@@ -1339,13 +1341,13 @@ int parse_operand(symbol* sym, char* str)
 				a = get_address(str,0);
 				if (rel[sym->addr] >= 0) { /* Relative branch */
 					if (vidx)
-						error("Illegal operand for relative branch", 1);
+                        fatal_error("Illegal operand for relative branch");
 					cmd = rel[sym->addr];
 					if (a > 255) {
 						v = a - pc - 2;
 						if ((v > 127) || (v < -128)) {
 							snprintf(buf, 80, "Branch overflow! Target %d bytes away.", v);
-							error(buf, 1);
+                            fatal_error(buf);
 						}
 						if (v < 0) v += 256;
 						a = v;
@@ -1423,7 +1425,7 @@ int num_cvt(char *num) {
       tp=IS_BINARY;
     else {
       tp=IS_DECIMAL; /* remove annoying compiler warning */
-      error("Malformed numeric constant.",1);
+      fatal_error("Malformed numeric constant.");
     }
   } else {
     tp=IS_DECIMAL;
@@ -1591,7 +1593,7 @@ int do_xword(int tp) {
   int d,c,p;
 
   if(!init_pc)
-    error("No initial address specified.",1);
+      fatal_error("No initial address specified.");
 
   add=0;
   tp=(tp==3);
@@ -1632,7 +1634,7 @@ int do_xword(int tp) {
         error("Useless statement.",0);
       break;
     case '"':
-      error("String must be in xbyte format.",1);
+        fatal_error("String must be in xbyte format.");
       break;
     default:
       d=to_comma(look,buf);
@@ -1675,126 +1677,138 @@ int do_xword(int tp) {
 
   processes a .xBYTE sequence in the file stream, also handles additives
  *=========================================================================*/
-int do_xbyte(int tp) {
-  char *str,*look;
-  char buf[256];
-  unsigned char add,cb,hi;
-  short a;
-  int d,i,p,c;
+int do_xbyte(int tp)
+{
+	char buf[256];
+	unsigned char cb, hi;
+	short a;
+	int d, i, p;
 
-  if(!init_pc)
-    error("No initial address specified.",1);
+	if (!init_pc)
+        fatal_error("No initial address specified.");
 
-  add=cb=0;
-  str=get_nxt_word(PARSE_LINE_REST);
-  while(ISSPACE(*str))
-    str++;
-  look=str+strlen(str)-1;
-  while(ISSPACE(*look)) {
-    *look=0;
-    look--;
-  }
+	unsigned char add = cb = 0;
+	char* str = get_nxt_word(PARSE_LINE_REST);
+	while (ISSPACE(*str))
+		str++;
+	char* look = str + strlen(str) - 1;
+	while (ISSPACE(*look)) {
+		*look = 0;
+		look--;
+	}
 
-  look=str;
-  c=p=0;
-  while(*look) {
-    if ((pass)&&(verbose)) {
-      if (!c) {
-        print_pc();
-        c++;
-      }
-      c++;
-    }
-    switch(*look) {
-    case '\t':  /* tab = 9 */
-    case ' ':   /* space = 32*/
-      look++;
-      break;
-    case '+':
-      if (look!=str)
-        error("Misplaced additive modifier.",0);
-      look++;
-      d=to_comma(look,buf);
-      look=look+d;
-      add=(unsigned char)get_immediate(buf);
-      c=1;
-      if (!look)
-        error("Useless statement.",0);
-      break;
-    case '"':
-      d=to_comma(look,buf);
-      look=look+d;
-      d=(int)strlen(buf)-1;
-      if ((d>255)||(((d<0)||(buf[0]!='"'))&&(buf[d]!='"'))||
-          ((d>0)&&(buf[0]== '"')&&(buf[d]!='"'))) {
-        error("Malformed string.",1);
-      } else {
-        if (pass)
-          for(i=1;i<d;i++) {
-          a=buf[i];
-          if ((!*look)&&(tp==1)&&(i==d-1))
-            cb=128;
-          else if (tp==2) {
-            hi=a&128;
-            a=ascii_to_screen[a&127]|hi;
-          }
-          put_byte((a+add)^cb);
-          c++;
-          if ((pass)&&(verbose)&&(c==6)) {
-            if (!p) {
-              aprintf("%s %s\n",outline,get_nxt_word(PARSE_CURRENT_LINE));
-              p=1;
-            } else {
-              aprintf("%s\n",outline);
-            }
-            outline[0]=0;
-            print_pc();
-            c=2;
-          }
-        }
-        else
-          pc+=d-1;
-      }
-      break;
-    default:
-      d=to_comma(look,buf);
-      look=look+d;
-      if (!pass)
-        pc++;
-      else {
-        a=get_immediate(buf);
-        if ((!*look)&&(tp==1))
-          cb=128;
-        else if (tp==2) {
-          hi=a&128;
-          a=ascii_to_screen[a&127]|hi;
-        }
-        put_byte((a+add)^cb);
-      }
-      break;
-    }
+	look = str;
+	int c = p = 0;
+	while (*look) 
+    {
+		if (pass && verbose)
+        {
+			if (!c) 
+            {
+				print_pc();
+				c++;
+			}
+			c++;
+		}
+		switch (*look) 
+        {
+			case '\t':  /* tab = 9 */
+			case ' ':   /* space = 32 */
+				look++;
+				break;
+			case '+':
+				if (look != str)
+					error("Misplaced additive modifier.", 0);
+				look++;
+				d = to_comma(look, buf);
+				look = look + d;
+				add = (unsigned char)get_immediate(buf);
+				c = 1;
+				if (!look)
+					error("Useless statement.", 0);
+				break;
+			case '"':
+				d = to_comma(look, buf);
+				look = look + d;
+				d = (int)strlen(buf) - 1;
+				if (d > 255
+                    || ((d < 0 || (buf[0] != '"')) && (d > 0 && buf[d] != '"')) 
+                    || (d > 0 && buf[0] == '"' && buf[d] != '"')) 
+                {
+                    fatal_error("Malformed string.");
+				}
+				else 
+                {
+					if (pass)
+						for (i = 1; i < d; i++) {
+							a = buf[i];
+							if ((!*look) && (tp == 1) && (i == d - 1))
+								cb = 128;
+							else if (tp == 2) {
+								hi = a & 128;
+								a = ascii_to_screen[a & 127] | hi;
+							}
+							put_byte((a + add) ^ cb);
+							c++;
+							if ((pass) && (verbose) && (c == 6)) {
+								if (!p) {
+									aprintf("%s %s\n", outline, get_nxt_word(PARSE_CURRENT_LINE));
+									p = 1;
+								}
+								else {
+									aprintf("%s\n", outline);
+								}
+								outline[0] = 0;
+								print_pc();
+								c = 2;
+							}
+						}
+					else
+						pc += d - 1;
+				}
+				break;
+			default:
+				d = to_comma(look, buf);
+				look = look + d;
+				if (!pass)
+					pc++;
+				else {
+					a = get_immediate(buf);
+					if ((!*look) && (tp == 1))
+						cb = 128;
+					else if (tp == 2) {
+						hi = a & 128;
+						a = ascii_to_screen[a & 127] | hi;
+					}
+					put_byte((a + add) ^ cb);
+				}
+				break;
+		}
 
-    if ((pass)&&(verbose)&&(c==5)) {
-      if (!p) {
-        aprintf("%s %s\n",outline,get_nxt_word(PARSE_CURRENT_LINE));
-        p=1;
-      } else {
-        aprintf("%s\n",outline);
-      }
-      c=0;
-      outline[0]=0;
-    }
-  }
-  if ((pass)&&(verbose)&&(c)) {
-    if (!p) {
-      aprintf("%s %s\n",outline,get_nxt_word(PARSE_CURRENT_LINE));
-    } else {
-      aprintf("%s\n",outline);
-    }
-  }
-  outline[0]=0;
-  return 1;
+		if ((pass) && (verbose) && (c == 5)) {
+			if (!p) {
+				aprintf("%s %s\n", outline, get_nxt_word(PARSE_CURRENT_LINE));
+				p = 1;
+			}
+			else {
+				aprintf("%s\n", outline);
+			}
+			c = 0;
+			outline[0] = 0;
+		}
+	}
+	if ((pass) && (verbose) && (c)) {
+		if (!p) {
+			aprintf("%s %s\n", outline, get_nxt_word(PARSE_CURRENT_LINE));
+		}
+		else {
+			aprintf("%s\n", outline);
+		}
+	}
+	outline[0] = 0;
+	return 1;
 }
+
 /*=========================================================================*
   function get_single(symbol *sym)
   parameters: sym - the opcode to process
@@ -1812,7 +1826,7 @@ int get_single(symbol *sym) {
       pc++;
     return 1;
   } else if (acc[sym->addr]<0) {
-    error("Illegal operand",1);
+      fatal_error("Illegal operand");
   }
   a=get_nxt_word(PARSE_PEEK_LINE_REST);
   squeeze_str(a);
@@ -1843,7 +1857,7 @@ int incbin(char *fname)
 	in = fopen_include(includes, fname, 1, final_fname);
 	if (!in) 
     {
-		error("Cannot open binary file", 1);
+        fatal_error("Cannot open binary file");
 	}
 	track_filename(final_fname);
 	v = verbose;
@@ -1873,7 +1887,7 @@ int incbin(char *fname)
 void clearDoneIfPartIndicators(int depth)
 {
     if (depth >= MAX_IF_DEPTH)
-        error("Too many nested .IF blocks!", 1);
+        fatal_error("Too many nested .IF blocks!");
 
     for (; depth < MAX_IF_DEPTH; ++depth)
     {
@@ -1897,7 +1911,7 @@ int skip_if()
     {
 		str = get_nxt_word(PARSE_SKIP);
 		if (!str)
-			error("Mismatched .IF/.ELSEIF/.ELSE/.ENDIF statements.", 1);
+            fatal_error("Mismatched .IF/.ELSEIF/.ELSE/.ENDIF statements.");
 
 		if (!STRCASECMP(str, ".IF"))
 			level++;
@@ -1909,7 +1923,7 @@ int skip_if()
                 // Exiting the block
                 --dotIfLevel;
                 if (dotIfLevel < 0)
-                    error("Mismatched .IF/.ELSEIF/.ELSE/.ENDIF statements.", 1);
+                    fatal_error("Mismatched .IF/.ELSEIF/.ELSE/.ENDIF statements.");
             }
         }
 
@@ -2097,7 +2111,7 @@ int do_trig(int cmd)
     scale = 8000;
 
     if (!init_pc)
-        error("No initial address specified.", 1);
+        fatal_error("No initial address specified.");
 
     // Get the rest of the line and trim front and back
     str = get_nxt_word(PARSE_LINE_REST);
@@ -2138,7 +2152,7 @@ int do_trig(int cmd)
         angle = get_expression(buf, 1, 0);
     }
     else {
-        error("No angle parameter", 1);
+        fatal_error("No angle parameter");
     }
 
     // Get param 2 = steps
@@ -2148,8 +2162,9 @@ int do_trig(int cmd)
         look = look + length;
         steps = get_expression(buf, 1, 0);
     }
-    else {
-        error("No steps parameter", 1);
+    else 
+    {
+        fatal_error("No steps parameter");
     }
 
 	// Get param 3 = scale
@@ -2160,7 +2175,7 @@ int do_trig(int cmd)
 		scale = get_expression(buf, 1, 0);
 	}
 	else {
-		error("No scale parameter", 1);
+        fatal_error("No scale parameter");
 	}
     
     // On pass 0 just note the command length (1 or 2 bytes)
@@ -2226,7 +2241,7 @@ int do_float_expr(int cmd)
     int d, hasPrintedPC, p;
 
     if (!init_pc)
-        error("No initial address specified.", 1);
+        fatal_error("No initial address specified.");
 
     // Trim front and back of expression
     str = get_nxt_word(PARSE_LINE_REST);
@@ -2263,7 +2278,7 @@ int do_float_expr(int cmd)
                 case DOT_FLOAT_2_U16_HL: pc += 2; break;
                 case DOT_FLOAT_2_U8: pc += 1; break;
                 default:
-                    error("Coding error: Unknown command type in do_float_expr", 1);
+                    fatal_error("Coding error: Unknown command type in do_float_expr");
                     return 0;
             }
         }
@@ -2341,7 +2356,7 @@ void doRunInitCommand(symbol* sym)
 			saveNamedMemoryRegion(pc, "INIT");
 			break;
 		default:
-			error("Illegal .rin or .init command", 1);
+            fatal_error("Illegal .rin or .init command");
 			break;
 	}
 
@@ -2352,7 +2367,7 @@ void doProcStart(symbol* sym)
 {
 	if (dotProcLevel > 0)
 	{
-		error("Nested .PROC/.ENDP not allowed", 1);
+        fatal_error("Nested .PROC/.ENDP not allowed");
 	}
     ++dotProcLevel;
 
@@ -2363,14 +2378,14 @@ void doProcStart(symbol* sym)
     if (str && strlen(str) > 0)
         do_cmd(str);
     else
-		error("No name for .PROC", 1);
+        fatal_error("No name for .PROC");
 }
 
 void doProcEnd(symbol* sym)
 {
     if (dotProcLevel <= 0)
     {
-        error("No matching .PROC for .ENDP", 1);
+        fatal_error("No matching .PROC for .ENDP");
     }
     // Finish off the current procedure
 	if (currentProcedure && (currentProcedure->hints & HINT_PROCEDURE))
@@ -2382,6 +2397,94 @@ void doProcEnd(symbol* sym)
         currentProcedure = NULL;
 	}
 	--dotProcLevel;
+}
+
+/*=========================================================================*
+ * function doGuard(int isGuard)
+ *
+ * This function handles checking the current PC against some condition.
+ * If the condition is not met then an error is shown.
+ * .GUARD Condition, "Error message", param1, param2, ...
+ * Where the "Error message" string can contain these replacements:
+ * {{*}} = current PC
+ * {{%1}} = 1st parameter expression result
+ * {{%n}} = nth parameter expression result
+ * i.e. .GUARD [* <= $100], "Memory overrun {{%1}} - ${{*}} by {{%2}} bytes", page0_80, [*-$100]
+ *=========================================================================*/
+void doGuard(const int isGuard)
+{
+    char buf[256];
+    char guardBuffer[256];
+
+    if (!init_pc)
+        fatal_error("No initial address specified.");
+
+    // Skip spaces at start and end
+    char* str = get_nxt_word(PARSE_LINE_REST);
+    while (ISSPACE(*str))
+        str++;
+    char* look = str + strlen(str) - 1;
+    while (ISSPACE(*look)) {
+        *look = 0;
+        look--;
+    }
+    look = str;
+
+    // Get the guard condition
+    if (*look == 0)
+    {
+        fatal_error("No guard/notify condition specified.");
+    }
+    int length = to_comma(look, guardBuffer);
+    look = look + length;
+
+    // Evaluate the guard/notify condition
+    squeeze_str(guardBuffer);
+    int exprValue = get_expression(guardBuffer, 1, 0);
+
+    if ( (isGuard && exprValue) || (!isGuard && !exprValue))
+        return;
+
+    // Get the guard/notify error message
+    if (*look == 0)
+    {
+        fatal_error("No guard/notify error message specified.");
+    }
+    length = to_comma(look, buf);
+    look = look + length;
+
+	char* errorMessage = STRDUP(buf);     // make a copy of the error message
+
+    // Get possible parameters
+    int paramNr = 1;
+    while (*look)
+    {
+        // This is the parameter {{%1}} we want to replace
+        char targetParam[20];
+		sprintf(targetParam, "{{%%%d}}", paramNr);
+
+        // Get the parameter expression
+        length = to_comma(look, buf);
+        look = look + length;
+        squeeze_str(buf);
+
+    	int paramValue = get_expression(buf, 1, 0);
+
+		sprintf(buf, "$%.4x", paramValue);         // Convert to string
+
+        // Do the replacement
+        char *processedErrorMsg = replace(errorMessage, targetParam, buf);
+        if (errorMessage)
+			free(errorMessage);
+        errorMessage = processedErrorMsg;
+
+        ++paramNr;
+    }
+
+    if (isGuard)
+        fatal_error(errorMessage);
+    else
+        message(errorMessage);
 }
 
 /*=========================================================================*
@@ -2416,13 +2519,13 @@ int proc_sym(symbol *sym)
         case OPCODE:  /* opcode */
         {
             if (!init_pc)
-                error("No initial address specified.", 1);
+                fatal_error("No initial address specified.");
             if ((verbose) && (pass)) {
                 currentPC = print_pc();
             }
 
             if (sym->addr >= LEGAL_OPS && !opt.ill)
-                error("6502 `illegal' opcode used without `.OPT ILL' or -u", 1);
+                fatal_error("6502 `illegal' opcode used without `.OPT ILL' or -u");
 
             if (num_args[sym->addr]) {
                 str = get_nxt_word(PARSE_LINE_REST);
@@ -2472,7 +2575,7 @@ int proc_sym(symbol *sym)
                     break;
                 case DOT_ERROR: /* .ERROR */
                     str = get_nxt_word(PARSE_NEXT_LINE);
-                    error(str, 1);
+                    fatal_error(str);
                     break;
                 case DOT_FLOAT: /* .FLOAT */
                     do_float();
@@ -2616,7 +2719,7 @@ int proc_sym(symbol *sym)
                     // * = expression ["Region name"]
                     // * = * + expression ["Region name"]
                     if ((!eq) || (eq == 2)) {
-                        error("Malformed * operator.", 1);
+                        fatal_error("Malformed * operator.");
                     }
                     if (verbose && pass)
                         aprintf("\n");
@@ -2634,9 +2737,9 @@ int proc_sym(symbol *sym)
                     if (str[0] == '*') {
                         // Relative adjustment
                         if (!init_pc)
-                            error("No initial address specified.", 1);
+                            fatal_error("No initial address specified.");
                         if (str[1] != '+')
-                            error("Illegal relative adjustment.", 1);
+                            fatal_error("Illegal relative adjustment.");
                         str[0] = '0';
                         addr = get_expression(str, 1, 0);
                         pc = pc + addr;
@@ -2674,7 +2777,7 @@ int proc_sym(symbol *sym)
                     break;
                 }
                 case DOT_ENDM:  /* .ENDM */
-                    error("No matching .MACRO definition for .ENDM", 1);
+                    fatal_error("No matching .MACRO definition for .ENDM");
                     break;
                 case DOT_MACRO:  /* .MACRO definition */
                     if (!pass)
@@ -2701,7 +2804,7 @@ int proc_sym(symbol *sym)
                     do_rept(sym);
                     break;
                 case DOT_ENDR:  /* .ENDR */
-                    error("No matching .REPT definition for .ENDR", 1);
+                    fatal_error("No matching .REPT definition for .ENDR");
                     break;
                 case DOT_WARN: /* .WARN */
                     str = get_nxt_word(PARSE_NEXT_LINE);
@@ -2738,7 +2841,7 @@ int proc_sym(symbol *sym)
 
                     if (opt.autoBankMode)
                     {
-                        error(".BANK not allowed in -a/-mac65 (autobank) mode", 1);
+                        fatal_error(".BANK not allowed in -a/-mac65 (autobank) mode");
                     }
 
 					str = get_nxt_word(PARSE_PEEK_LINE_REST);
@@ -2798,7 +2901,7 @@ int proc_sym(symbol *sym)
 						activeBank = get_bank(bankID, reportedBankNr);
                         if (activeBank == NULL)
                         {
-                            error("Cannot allocate memory snapshot.", 1);
+                            fatal_error("Cannot allocate memory snapshot.");
                         }
 					}
 					/* Skip for now... */
@@ -2810,11 +2913,11 @@ int proc_sym(symbol *sym)
                 case DOT_ALIGN: { /* .ALIGN */
                     int ok = 0;
                     if (!init_pc)
-                        error("No initial address specified.", 1);
+                        fatal_error("No initial address specified.");
                     str = get_nxt_word(PARSE_LINE_REST);
                     squeeze_str(str);
                     if (strlen(str) == 0) {
-                        error("Need to specify an alignment boundary", 1);
+                        fatal_error("Need to specify an alignment boundary");
                     }
                     init_pc = 1;
                     addr = get_expression(str, 1, 0);
@@ -2827,7 +2930,7 @@ int proc_sym(symbol *sym)
                         }
                     }
                     if (ok == 0) {
-                        error("Align boundary needs to be power of 2", 1);
+                        fatal_error("Align boundary needs to be power of 2");
                     }
                     break;
                 }
@@ -2909,8 +3012,23 @@ int proc_sym(symbol *sym)
                     doProcEnd(sym);
                     break;
 
+				// .GUARD [Condition], "Error message", param1, param2, param3
+                // Will terminate assembler
+				case DOT_GUARD:
+				{
+                    doGuard(1);
+					break;
+				}
+                // .NOTIFY [Condition], "Message", param1, param2, param3
+                // Will print message and continue with assembly
+                case DOT_NOTIFY:
+                {
+                    doGuard(0);
+                    break;
+                }
+
                 default:
-                    error("Illegal directive.", 1);
+                    fatal_error("Illegal directive.");
                     break;
             }
             break;
@@ -2919,7 +3037,7 @@ int proc_sym(symbol *sym)
         {
             mc = get_macro_call(sym->name);
             if (!mc)
-                error("Missing entry in macro table", 1);
+                fatal_error("Missing entry in macro table");
 
             macro_param(mc, str);
             mc->nxt = invoked;
@@ -2933,14 +3051,14 @@ int proc_sym(symbol *sym)
             if (!pass) {
                 if (eq == 1) {
                     snprintf(buf, 80, "Equate '%s' defined multiple times", sym->name);
-                    error(buf, 1);
+                    fatal_error(buf);
                 }
                 sym->num++;
             }
             if (eq) {
                 if (sym->tp != MACROQ) {
                     snprintf(buf, 80, "Symbol '%s' is not a transitory equate!", sym->name);
-                    error(buf, 1);
+                    fatal_error(buf);
                 }
                 str = get_nxt_word(PARSE_LINE_REST);
                 if (eq == 2) {
@@ -2962,7 +3080,7 @@ int proc_sym(symbol *sym)
                     if (update) {
                         update->addr = pc;
                     }
-                    defUnk(sym->name, pc);
+                    defineUnknown(sym->name, pc);
                 }
             }
             break;
@@ -2973,12 +3091,12 @@ int proc_sym(symbol *sym)
             if (!pass) {
                 if (eq == 2) {
                     snprintf(buf, 80, "Symbol '%s' is not a transitory equate!", sym->name);
-                    error(buf, 1);
+                    fatal_error(buf);
                 }
                 else {
                     if (sym->addr > 255) {
                         snprintf(buf, 80, "Symbol '%s' already defined!", sym->name);
-                        error(buf, 1);
+                        fatal_error(buf);
                     }
                 }
             }
@@ -2992,7 +3110,7 @@ int proc_sym(symbol *sym)
                 // Equate (=)
                 if (sym->tp == LABEL) {
                     snprintf(buf, 80, "Cannot use label '%s' as an equate", sym->name);
-                    error(buf, 1);
+                    fatal_error(buf);
                 }
                 str = get_nxt_word(PARSE_LINE_REST);
                 if (sym->addr == 0xffff) {  /* allow forward equate references */
@@ -3000,7 +3118,7 @@ int proc_sym(symbol *sym)
                     addr = get_address(str,0);
                     sym->addr = addr;
                     sym->bank = activeBank->reportedBankNr;
-                    defUnk(sym->name, addr);
+                    defineUnknown(sym->name, addr);
                 }
                 eq = 0;
             }
@@ -3017,13 +3135,13 @@ int proc_sym(symbol *sym)
                     addr = get_address(str,1);
                     sym->addr = addr;
                     sym->bank = activeBank->reportedBankNr;
-                    defUnk(sym->name, addr);
+                    defineUnknown(sym->name, addr);
 
                     eq = 0;
                 }
                 else {
                     snprintf(buf, 80, "Use .= to assign '%s' new a value.", sym->name);
-                    error(buf, 1);
+                    fatal_error(buf);
                 }
             }
             else {
@@ -3033,7 +3151,7 @@ int proc_sym(symbol *sym)
                     addr = get_address(str,1);
                     sym->addr = addr;
                     sym->bank = activeBank->reportedBankNr;
-                    defUnk(sym->name, addr);
+                    defineUnknown(sym->name, addr);
                     eq = 0;
                 }
             }
@@ -3042,7 +3160,7 @@ int proc_sym(symbol *sym)
 		default:
 			if (!pass) {
 				snprintf(buf, 80, "Symbol '%s' already defined!", sym->name);
-				error(buf, 1);
+                fatal_error(buf);
 			}
 	}
 	return 1;
@@ -3256,7 +3374,7 @@ int save_binary(char *fname) {
 
   out=fopen(fname,"wb");
   if (!out)
-    error("Cannot open file for writing.",1);
+      fatal_error("Cannot open file for writing.");
 
   save_word(out,0xffff,0);
 
@@ -3312,7 +3430,7 @@ int save_raw(char *fname, unsigned char fillByte) {
 
   out=fopen(fname,"wb");
   if (!out)
-    error("Cannot open file for writing.",1);
+      fatal_error("Cannot open file for writing.");
 
   banks=count_banks();
   bankNum=0;
@@ -3378,9 +3496,9 @@ void process_predef(str_list *head) {
     def=walk->str;
     sym=get_sym();
     if (def==NULL)
-      error("NULL symbol defined on command line",1);
+        fatal_error("NULL symbol defined on command line");
     if (*def=='\0')
-      error("-D option missing symbol",1);
+        fatal_error("-D option missing symbol");
 
     sym->name=malloc(strlen(def)+1);
     strcpy(sym->name,def);

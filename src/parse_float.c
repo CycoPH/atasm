@@ -154,7 +154,7 @@ yysetstate:
 	*yyssp = yystate;
 	if (yyss + yystacksize - 1 <= yyssp)
 	{
-		long unsigned int yysize = yyssp - yyss + 1;
+		long unsigned int yysize = (long unsigned int)(yyssp - yyss + 1);
 		if (10000 <= yystacksize)
 			goto yyexhaustedlab;
 		yystacksize *= 2;
@@ -230,7 +230,7 @@ yyreduce:
 	switch (yyn)
 	{
 		case 2:
-		{ frval = (yyvsp[(1) - (1)]); ; }
+		{ frval = (float)(yyvsp[(1) - (1)]); ; }
 		break;
 		case 3:
 		{(yyval) = fnums[fvnum++]; ; }

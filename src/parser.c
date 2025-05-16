@@ -24,7 +24,7 @@
 #include <string.h>
  /*=========================================================================*/
 int yylex();
-void error(char* s, int tp);
+void fatal_error(char* s);
 extern int nums[];
 extern int vnum;
 int rval;
@@ -163,7 +163,7 @@ yynewstate:
 	*++yyssp = yystate;
 	if (yyssp >= yyss + yystacksize - 1)
 	{
-		error("Parser stack overflow", 1);
+		fatal_error("Parser stack overflow");
 	}
 	yyn = yypact[yystate];
 	if (yyn == -32768)
@@ -307,7 +307,7 @@ yyerrlab:
 	if (!yyerrstatus)
 	{
 		++yynerrs;
-		error("Error parsing expression", 1);
+		fatal_error("Error parsing expression");
 	}
 
 	if (yyerrstatus == 3)
