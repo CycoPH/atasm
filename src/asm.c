@@ -2453,7 +2453,20 @@ void doGuard(const int isGuard)
     length = to_comma(look, buf);
     look = look + length;
 
-	char* errorMessage = STRDUP(buf);     // make a copy of the error message
+    /*
+    str = buf;
+    while (*str == '"')
+        str++;
+    char* clear = buf + strlen(buf) - 1;
+    while (*clear == '"') 
+    {
+        *clear = 0;
+        clear--;
+    }
+
+	char* errorMessage = STRDUP(str);     // make a copy of the error message
+	*/
+    char* errorMessage = STRDUP(buf);     // make a copy of the error message
 
     // Get possible parameters
     int paramNr = 1;

@@ -1097,7 +1097,7 @@ var2 .ds 1
 alice	.ds 1 ; <-- this is the last byte in Page 0. Any thing else will overflow into Page 1 
 bob	.ds 2
 
-	.GUARD [* <= $100], "Memory {{%1}}-{{*}} overflow by {{%2}} bytes", var1, [*-$100]
+	.GUARD [*<=$100], "Memory {{%1}}-{{*}} overflow by {{%2}} bytes", $80, [*-$100]
 ```
 
 *.GUARD* takes a list of parameters of the form:
@@ -1147,7 +1147,7 @@ NOTE: It is a advisable to put your conditions and expressions into square brack
 Perhaps most importantly, ATasm works with ASCII files, not ATASCII or Mac/65 tokenized save files. If you must use a tokenized file there are programs available to convert tokenized files to ATASCII (or load the file in Mac/65 and LIST it to disk). Then use a filter program such as 'a2u' to convert the ATASCII to ASCII.
 
 * Comment lines only begin with ';' not with '*'
-* Comment blocks are supported via /* ... */
+* Comment blocks are supported via /\* ... \*/
 * The character '|' can be used in place of '!' as a binary OR
 * Macros can have an arbitrary number of parameters and can be nested arbitrarily deep during invocation.
 * .INCLUDEs can be arbitrarily nested.

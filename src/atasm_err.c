@@ -155,7 +155,7 @@ char *InjectPC(const char* msg)
 	// Look for {*} in the error message and replace it with the current PC
 	if (strstr(msg, "{{*}}")) {
 		char PC[20];
-		sprintf(PC, "$%04X", pc);
+		sprintf(PC, "$%04x", pc);
 		return replace(msg, "{{*}}", PC);
 	}
 	return NULL;
