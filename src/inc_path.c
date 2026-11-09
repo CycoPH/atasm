@@ -108,10 +108,11 @@ void append_include(str_list *head, char *path) {
 
   attempts to open a file, checking all include paths
  *=========================================================================*/
-FILE *fopen_include(str_list *head, char *fname, int is_binary, char* store_fname_here) {
+FILE *fopen_include(str_list *head, char *fname, int is_binary, char* store_fname_here, size_t store_fname_size) {
   char errbuf[255],mode[3];
   char *full_path;
   FILE *in;
+  int n;
 
   if (is_binary)
     strcpy(mode,"rb");
@@ -121,7 +122,12 @@ FILE *fopen_include(str_list *head, char *fname, int is_binary, char* store_fnam
   /* First, attempt to open file normally... */
   in=fopen(fname,mode);
   if (in) {
-    strcpy(store_fname_here, fname);
+    if (strlen(fname) + 1 > store_fname_size) {
+      fclose(in);
+      snprintf(errbuf, sizeof(errbuf), "Filename too long: '%s'", fname);
+      fatal_error(errbuf);
+    }
+    memcpy(store_fname_here, fname, strlen(fname) + 1);
     return in;
   }
   /* Now test with include paths... */
@@ -130,20 +136,28 @@ FILE *fopen_include(str_list *head, char *fname, int is_binary, char* store_fnam
       fatal_error("Cannot allocate MAX_PATH bytes in fopen_include");
 
   while(head) {
-    full_path[0] = '\0';
-    strcpy(full_path, head->str);
-    strcat(full_path, DIR_SEP);
-    strcat(full_path, fname);
+    n = snprintf(full_path, MAX_PATH, "%s%s%s", head->str, DIR_SEP, fname);
+    if (n < 0 || n >= MAX_PATH) {
+      /* Path too long for this include entry; skip it */
+      head = head->next;
+      continue;
+    }
     in=fopen(full_path,mode);
     if (in) {
-      strcpy(store_fname_here, full_path);
+      if ((size_t)n + 1 > store_fname_size) {
+        fclose(in);
+        free(full_path);
+        snprintf(errbuf, sizeof(errbuf), "Resolved include path too long: '%s'", full_path);
+        fatal_error(errbuf);
+      }
+      memcpy(store_fname_here, full_path, (size_t)n + 1);
       free(full_path);
       return in;
     }
     head=head->next;
   }
   free(full_path);
-  snprintf(errbuf,255,"Cannot open file: '%s'", fname);
+  snprintf(errbuf,sizeof(errbuf),"Cannot open file: '%s'", fname);
   fatal_error(errbuf);
   return NULL;
 }

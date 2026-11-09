@@ -1,8 +1,8 @@
-# ATasm v1.30
+# ATasm v1.32
 
 ## A mostly Mac/65 compatible 6502 cross-assembler
 
-Copyright (c) 1998-2021 Mark Schmelzenbach, modified by Peter Hinz (2021-2025)
+Copyright (c) 1998-2021 Mark Schmelzenbach, modified by Peter Hinz (2021-2026)
 
 *ATasm is a 6502 command-line cross-assembler that is compatible with the original Mac/65 macroassembler released by OSS software. Code development can now be performed using "modern" editors and compiles with lightning speed.*
 
@@ -216,6 +216,9 @@ Added .PROC/.ENDP for procedure definitions. This defines a local scope and a la
 
 Version 1.30 \- Added .GUARD/.NOTIFY directive.
 Check the [.GUARD](#guard) section for usage details.
+
+Version 1.32 \- Fixed skip_if() to recognize nested .IFDEF and .IFNDEF directives when scanning past a false conditional block. Previously only nested .IF was tracked, so a nested .IFDEF/.IFNDEF inside a skipped branch would unbalance the level counter and consume the outer .ENDIF.
+Fixed .BANK parameter parsing when the line contains only a trailing comment (e.g. ".BANK ; comment"). squeeze\_str() is now called before the strlen() check, so whitespace left after the comment is stripped and the directive correctly falls through to the no-parameter path.
 
 ## Chapter 1: ATasm {#chapter-1}
 

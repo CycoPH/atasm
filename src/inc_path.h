@@ -21,6 +21,8 @@
 #ifndef INC_PATH_H
 #define INC_PATH_H
 
+#include <stddef.h>
+
 #define MAX_PATH 1024
 
 
@@ -46,7 +48,7 @@
 str_list *init_include();
 
 void append_include(str_list *, char *);
-FILE *fopen_include(str_list *head, char *fname, int is_binary, char *store_fname_here);
+FILE *fopen_include(str_list *head, char *fname, int is_binary, char *store_fname_here, size_t store_fname_size);
 
 void free_str_list(str_list *);
 

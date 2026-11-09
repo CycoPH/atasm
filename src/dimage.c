@@ -142,6 +142,11 @@ DiskImg *get_new_disk(char *dname) {
   }
 
   img=(DiskImg *)malloc(sizeof(DiskImg));
+  if (!img) {
+    fclose(fd);
+    fprintf(stderr, "Out of memory allocating disk image\n");
+    return NULL;
+  }
   img->image=fd;
   img->header=dimg.header;
   img->secSize=dimg.secSize;
@@ -149,6 +154,14 @@ DiskImg *get_new_disk(char *dname) {
   img->dskSize=dimg.dskSize;
   img->VTOCsec=(unsigned char *)malloc(256);
   img->secbuf=(unsigned char *)malloc(img->secSize);
+  if (!img->VTOCsec || !img->secbuf) {
+    free(img->VTOCsec);
+    free(img->secbuf);
+    free(img);
+    fclose(fd);
+    fprintf(stderr, "Out of memory allocating disk image buffers\n");
+    return NULL;
+  }
 
   memset(img->secbuf,0,img->secSize);
   memset(img->VTOCsec,0,256);

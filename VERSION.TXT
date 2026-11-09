@@ -250,3 +250,13 @@ May 2, 2025
   version 1.29 - Added .IFDEF and .IFNDEF directive. Short version of: .IF .DEF and .IF .NOT .DEF
 				Parsing binary numbers in MADS format %11110000 works now.
 				Added multi-line comments using the /* ..... */ format
+
+Nov 9, 2026
+  version 1.32 - Fixed skip_if() to recognize nested .IFDEF and .IFNDEF directives
+				when scanning past a false conditional block. Previously only nested
+				.IF was tracked, so a nested .IFDEF/.IFNDEF inside a skipped branch
+				would unbalance the level counter and consume the outer .ENDIF.
+				Fixed .BANK parameter parsing when the line contains only a trailing
+				comment (e.g. ".BANK ; comment"). squeeze_str() is now called before
+				the strlen() check, so whitespace left after the comment is stripped
+				and the directive correctly falls through to the no-parameter path.

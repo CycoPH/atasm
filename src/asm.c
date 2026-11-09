@@ -517,7 +517,7 @@ int open_file(char *fname) {
   }
   strcpy(fnew->name,fname);
 
-  fnew->in = fopen_include(includes, fname, 0, final_fname);
+  fnew->in = fopen_include(includes, fname, 0, final_fname, sizeof(final_fname));
   if (!fnew->in) {
     snprintf(buf,256,"Cannot open file '%s'\n",fname);
     fatal_error(buf);
@@ -550,9 +550,9 @@ void aprintf(char* msg, ...) {
 
 	buf[0] = line[0] = 0;
 	va_start(args, msg);
-	vsprintf(buf, msg, args);
-	strcat(line, buf);
+	vsnprintf(buf, sizeof(buf), msg, args);
 	va_end(args);
+	strncat(line, buf, sizeof(line) - 1);
 
 	/* normal verbose output */
 	if (verbose & 1) {
@@ -634,7 +634,7 @@ char *get_nxt_word(int tp) {
     look=fget;
     instr=0;
     while(*look) {
-      if ((*look==',')&&(!instr)&&(*(look-1)!='\''))
+      if ((*look==',')&&(!instr)&&((look==fget)||(*(look-1)!='\'')))
         *look=' ';  /* replace , with space */
       if (*look=='"')   /* start or end of string */
         instr^=1;
@@ -1854,7 +1854,7 @@ int incbin(char *fname)
 	int b, v;
 	char final_fname[256];
 
-	in = fopen_include(includes, fname, 1, final_fname);
+	in = fopen_include(includes, fname, 1, final_fname, sizeof(final_fname));
 	if (!in) 
     {
         fatal_error("Cannot open binary file");
@@ -1913,8 +1913,8 @@ int skip_if()
 		if (!str)
             fatal_error("Mismatched .IF/.ELSEIF/.ELSE/.ENDIF statements.");
 
-		if (!STRCASECMP(str, ".IF"))
-			level++;
+		if (!STRCASECMP(str, ".IF") || !STRCASECMP(str, ".IFDEF") || !STRCASECMP(str, ".IFNDEF"))
+			level++;    /* nested .IF/.IFDEF/.IFNDEF, skip to its .ENDIF */
         if (!STRCASECMP(str, ".ENDIF"))
         {
             level--;
@@ -2858,9 +2858,10 @@ int proc_sym(symbol *sym)
                     }
 
 					str = get_nxt_word(PARSE_PEEK_LINE_REST);
+					squeeze_str(str);           // Remove all spaces; a comment has already been cut off,
+					                            // so a line like ".BANK ; comment" leaves nothing here
 					if (strlen(str)) {
-                        // There are parameters for .BANK 
-						squeeze_str(str);       // Remove all spaces
+                        // There are parameters for .BANK
 						if (str[0] == ',')      // If the first char in the string is ',' then there is no BankNr parameter
 							param2 = -2;        // Indicate that there is a number for param2
 
@@ -3643,8 +3644,25 @@ void showHelp(char *executable)
     fputs("         -ha[fname]: dumps equates and labels to header file for assembler\n", stderr);
     fputs("         -hv[clLm]: dumps all info for VSCode plugin. c=constants, l=labels (primary/no?), L=labels (ALL), m=macros\n", stderr);
     fputs("         -noshowmem: Do not dump the memory layout\n", stderr);
-    fputs("         -eval: Just run the assembler producing data but don't write the output to disc\n", stderr);
+    fputs("         -eval: Just run the assembler producing data but don't write the output to disk\n", stderr);
     fputs("         -a OR -mac65: autobank: Put each segment in its own bank. For Mac/65 compatibility\n", stderr); 
+}
+
+/*=========================================================================*
+ * function copy_cli_arg
+ *
+ * Copies a CLI argument tail into a fixed-size buffer, aborting if it
+ * would overflow. Used by the -o/-l/-g/... option handlers below.
+ *=========================================================================*/
+static void copy_cli_arg(char* dst, size_t dst_size, const char* src, const char* opt_name)
+{
+	size_t len = strlen(src);
+	if (len + 1 > dst_size) {
+		fprintf(stderr, "Value for %s is too long (%zu chars, max %zu)\n",
+			opt_name, len, dst_size - 1);
+		exit(1);
+	}
+	memcpy(dst, src, len + 1);
 }
 
 /*=========================================================================*
@@ -3652,7 +3670,7 @@ void showHelp(char *executable)
  *
  * starts the whole process
  *=========================================================================*/
-int main(int argc, char* argv[]) 
+int main(int argc, char* argv[])
 {
 	char outfile[256], fname[256], snap[256], xname[256], labelfile[256], listFilename[256];
 	char cheaderfile[256 + 2], asmheaderfile[256 + 4];
@@ -3704,7 +3722,7 @@ int main(int argc, char* argv[])
 		}
 		else if (!STRNCASECMP(argv[i], "-o", 2)) {
 			if (strlen(argv[i]) > 2) {
-				strcpy(outfile, argv[i] + 2);
+				copy_cli_arg(outfile, sizeof(outfile), argv[i] + 2, "-o");
 			}
 			else {
 				fprintf(stderr, "Must specify output file for -o (example: -omyprog.bin)\n");
@@ -3713,7 +3731,7 @@ int main(int argc, char* argv[])
 		}
 		else if (!STRNCASECMP(argv[i], "-l", 2)) {
 			if (strlen(argv[i]) > 2) {
-				strcpy(labelfile, argv[i] + 2);
+				copy_cli_arg(labelfile, sizeof(labelfile), argv[i] + 2, "-l");
 			}
 			else {
 				fprintf(stderr, "Must specify label output file for -l (example: -llabels.lab)\n");
@@ -3723,7 +3741,7 @@ int main(int argc, char* argv[])
 		else if (!STRNCASECMP(argv[i], "-hc", 3))
 		{
 			if (strlen(argv[i]) > 3) {
-				strcpy(cheaderfile, argv[i] + 3);
+				copy_cli_arg(cheaderfile, sizeof(cheaderfile), argv[i] + 3, "-hc");
 			}
 			else {
 				create_c_header_fn = 1;
@@ -3731,7 +3749,7 @@ int main(int argc, char* argv[])
 		}
 		else if (!STRNCASECMP(argv[i], "-ha", 3)) {
 			if (strlen(argv[i]) > 3) {
-				strcpy(asmheaderfile, argv[i] + 3);
+				copy_cli_arg(asmheaderfile, sizeof(asmheaderfile), argv[i] + 3, "-ha");
 			}
 			else {
 				create_asm_header_fn = 1;
@@ -3767,7 +3785,7 @@ int main(int argc, char* argv[])
 		}
 		else if (!STRNCASECMP(argv[i], "-g", 2)) {
 			if (strlen(argv[i]) > 2) {
-				strcpy(listFilename, argv[i] + 2);
+				copy_cli_arg(listFilename, sizeof(listFilename), argv[i] + 2, "-g");
 			}
 			else {
 				fprintf(stderr, "Must specify list output file for -g (example: -glist.lst)\n");
@@ -3784,9 +3802,20 @@ int main(int argc, char* argv[])
 			}
 		}
 		else if (!STRNCASECMP(argv[i], "-d", 2)) {
+			const char* value = argv[i] + 2;
+			size_t vlen = strlen(value);
 			str_list* str = (str_list*)malloc(sizeof(str_list));
-			str->str = (char*)malloc(strlen(argv[i] + 1));
-			strcpy(str->str, argv[i] + 2);
+			if (!str) {
+				fprintf(stderr, "Out of memory processing -d\n");
+				return 1;
+			}
+			str->str = (char*)malloc(vlen + 1);
+			if (!str->str) {
+				free(str);
+				fprintf(stderr, "Out of memory processing -d\n");
+				return 1;
+			}
+			memcpy(str->str, value, vlen + 1);
 			str->next = predefs;
 			predefs = str;
 		}
@@ -3794,7 +3823,7 @@ int main(int argc, char* argv[])
 			dsymbol = 1;
 		else if (!STRNCASECMP(argv[i], "-x", 2)) {
 			if (strlen(argv[i]) > 2)
-				strcpy(xname, argv[i] + 2);
+				copy_cli_arg(xname, sizeof(xname), argv[i] + 2, "-x");
 			else {
 				fprintf(stderr, "Must specify .XFD file.\n");
 				return 1;
@@ -3803,7 +3832,7 @@ int main(int argc, char* argv[])
 		}
 		else if (!STRNCASECMP(argv[i], "-m", 2)) {
 			if (strlen(argv[i]) > 2)
-				strcpy(snap, argv[i] + 2);
+				copy_cli_arg(snap, sizeof(snap), argv[i] + 2, "-m");
 			else
 				fprintf(stderr, "Using default state file: '%s'\n", snap);
 			state = 1;
@@ -3820,7 +3849,7 @@ int main(int argc, char* argv[])
 		{
 			opt.evalOnly = 1;
 		}
-		else strcpy(fname, argv[i]);
+		else copy_cli_arg(fname, sizeof(fname), argv[i], "source file");
 	}
 
 	if (!strlen(fname)) {
@@ -3843,9 +3872,9 @@ int main(int argc, char* argv[])
 
 	/* If the -hc or -ha options did not specify a filename lets create them now */
 	if (create_c_header_fn)
-		sprintf(cheaderfile, "%s.h", fname);
+		snprintf(cheaderfile, sizeof(cheaderfile), "%s.h", fname);
 	if (create_asm_header_fn)
-		sprintf(asmheaderfile, "%s.inc", fname);
+		snprintf(asmheaderfile, sizeof(asmheaderfile), "%s.inc", fname);
 
 	init_asm();
 	assemble(fname);
